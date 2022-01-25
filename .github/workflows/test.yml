@@ -1,0 +1,45 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  GolangTest:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - name: Set up Go Version 1.x
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.15
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Check and Verify Go modules
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+          go mod verify
+
+      - name: Go code format with gofumpt
+        run: |
+          go install mvdan.cc/gofumpt@v0.2.1
+          gofumpt -l -w .
+          git diff --exit-code
+        shell: bash
+
+      - name: Test
+        run: |
+          go test -v -covermode=count --coverprofile coverage.txt ./...
+        shell: bash
+
+      - name: Upload codecov
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./coverage.txt
