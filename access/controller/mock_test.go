@@ -17,7 +17,6 @@ package controller_test
 import (
 	"context"
 	"math/rand"
-	"syscall"
 	"testing"
 	"time"
 
@@ -58,15 +57,6 @@ var (
 func init() {
 	rand.Seed(int64(time.Now().Nanosecond()))
 	log.SetOutputLevel(log.Lerror)
-
-	rLimit := syscall.Rlimit{
-		Max: 1000000,
-		Cur: 1000000,
-	}
-	err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
-	if err != nil {
-		panic(err)
-	}
 
 	dataCalled = map[proto.Vid]int{1: 0, 9: 0}
 

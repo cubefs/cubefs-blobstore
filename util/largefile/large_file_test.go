@@ -60,7 +60,7 @@ func TestLargeFile(t *testing.T) {
 	for i := range fis {
 		b, err := ioutil.ReadFile(tmpPath + "/" + fis[i].Name())
 		assert.NoError(t, err)
-		t.Log(fis[i].Name(), b)
+		t.Log(fis[i].Name(), len(b))
 	}
 
 	off := int64(0)
