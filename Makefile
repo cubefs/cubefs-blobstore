@@ -19,6 +19,7 @@ GCFLAGS=all=-trimpath=$(PROJECTDIR)
 ASMFLAGS=all=-trimpath=$(PROJECTDIR)
 BRANCHNAME=${branchName}
 COMMITID=${commitId}
+$(shell mkdir $(BINDIR))
 
 ifeq ($(BRANCHNAME),)
 	BRANCHNAME=$(shell git symbolic-ref --short -q HEAD)
@@ -30,7 +31,7 @@ ifneq ($(BRANCHNAME),)
     LDFLAGS+= -X "github.com/cubefs/blobstore/common/util/version.version=$(BRANCHNAME)/$(COMMITID)"
 endif
 
-BUILD=go build -v -gcflags=$(GCFLAGS) -asmflags=$(ASMFLAGS) -ldflags='$(LDFLAGS)' -o ${BINDIR}
+BUILD=go build -v -gcflags=$(GCFLAGS) -asmflags=$(ASMFLAGS) -ldflags='$(LDFLAGS)' -o $(BINDIR)
 INSTALL=CGO_ENABLED=0 $(BUILD)
 CGOINSTALL=CGO_ENABLED=1 $(BUILD)
 CMDDIR=github.com/cubefs/blobstore/cmd
