@@ -35,14 +35,16 @@ if [ ! -f lib/libz.a ]; then
     fi
     tar -zxf zlib-${ZLIB_VER}.tar.gz
     pushd zlib-${ZLIB_VER}
-    ./configure --prefix=${INSTALLDIR} --static
-    make && make install
+    CFLAGS='-fPIC' ./configure --prefix=${INSTALLDIR} --static
+    make
+    cp -f libz.a ${INSTALLDIR}/lib
+    cp -f zlib.h zconf.h ${INSTALLDIR}/include
     popd
 fi
 
 if [ ! -f lib/libbz2.a ]; then
     rm -rf bzip2-bzip2-${BZIP2_VER}
-    if [ ! -f bzip2-${BZIP2_VER}.tar.gz ]; then
+    if [ ! -f bzip2-bzip2-${BZIP2_VER}.tar.gz ]; then
         wget https://gitlab.com/bzip2/bzip2/-/archive/bzip2-${BZIP2_VER}/bzip2-bzip2-${BZIP2_VER}.tar.gz
         if [ $? -ne 0 ]; then
             exit 1
@@ -50,7 +52,7 @@ if [ ! -f lib/libbz2.a ]; then
     fi
     tar -zxf bzip2-bzip2-${BZIP2_VER}.tar.gz
     pushd bzip2-bzip2-${BZIP2_VER}
-    make libbz2.a
+    make CFLAGS='-fPIC -O2 -g -D_FILE_OFFSET_BITS=64'
     cp -f libbz2.a ${INSTALLDIR}/lib/libbz2.a
     cp -f bzlib.h bzlib_private.h ${INSTALLDIR}/include
     popd
@@ -66,8 +68,9 @@ if [ ! -f lib/libzstd.a ]; then
     fi
     tar -zxf zstd-${ZSTD_VER}.tar.gz
     pushd zstd-${ZSTD_VER}/lib
-    prefix=${INSTALLDIR} make install-static
-    prefix=${INSTALLDIR} make install-includes
+    make CFLAGS='-fPIC -O2'
+    cp -f libzstd.a ${INSTALLDIR}/lib
+    cp -f zstd.h common/zstd_errors.h deprecated/zbuff.h dictBuilder/zdict.h ${INSTALLDIR}/include
     popd
 fi
 
@@ -80,9 +83,9 @@ if [ ! -f lib/liblz4.a ]; then
     fi
     tar -zxf lz4-${LZ4_VER}.tar.gz
     pushd lz4-${LZ4_VER}/lib
-    make liblz4.a
-    prefix=${INSTALLDIR} make install
-    rm -f ${INSTALLDIR}/lib/liblz4.so*
+    make CFLAGS='-fPIC -O2' all
+    cp -f liblz4.a ${INSTALLDIR}/lib
+    cp -f lz4frame_static.h lz4.h lz4hc.h lz4frame.h ${INSTALLDIR}/include
     popd
 fi
 

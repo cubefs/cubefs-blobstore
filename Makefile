@@ -19,7 +19,7 @@ GCFLAGS=all=-trimpath=$(PROJECTDIR)
 ASMFLAGS=all=-trimpath=$(PROJECTDIR)
 BRANCHNAME=${branchName}
 COMMITID=${commitId}
-$(shell mkdir $(BINDIR))
+TEST=$(shell if [ ! -d $(BINDIR) ]; then mkdir $(BINDIR); fi)
 
 ifeq ($(BRANCHNAME),)
 	BRANCHNAME=$(shell git symbolic-ref --short -q HEAD)
