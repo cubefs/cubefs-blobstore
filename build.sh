@@ -75,7 +75,7 @@ if [ ! -f lib/libzstd.a ]; then
 fi
 
 if [ ! -f lib/liblz4.a ]; then
-    if [ ! -f lz4.tar.gz ]; then
+    if [ ! -f lz4-${LZ4_VER}.tar.gz ]; then
         wget https://github.com/lz4/lz4/archive/v${LZ4_VER}.tar.gz -O lz4-${LZ4_VER}.tar.gz
         if [ $? -ne 0 ]; then
             exit 1
@@ -83,7 +83,7 @@ if [ ! -f lib/liblz4.a ]; then
     fi
     tar -zxf lz4-${LZ4_VER}.tar.gz
     pushd lz4-${LZ4_VER}/lib
-    make CFLAGS='-fPIC -O2' all
+    make CFLAGS='-fPIC -O2'
     cp -f liblz4.a ${INSTALLDIR}/lib
     cp -f lz4frame_static.h lz4.h lz4hc.h lz4frame.h ${INSTALLDIR}/include
     popd
