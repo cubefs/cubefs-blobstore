@@ -16,9 +16,11 @@ package recordlog
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
+	"math/rand"
 	"os"
+	"path"
 	"sync"
 	"testing"
 
@@ -57,15 +59,14 @@ func TestLogger(t *testing.T) {
 	wg.Wait()
 	require.NoError(t, enc.Close())
 
-	// test
-	dir := "./test_recordlog_tmp_XHGHGE"
-	err = os.MkdirAll(dir, 0o666)
-	log.Println(dir)
+	tmpDir := path.Join(os.TempDir(), fmt.Sprintf("recordlog_tmp_%d", rand.Intn(10000000)))
+	err = os.Mkdir(tmpDir, 0o755)
+	t.Log(tmpDir)
 	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(tmpDir)
 
 	conf = &Config{
-		Dir:       dir,
+		Dir:       tmpDir,
 		ChunkBits: 20,
 	}
 
