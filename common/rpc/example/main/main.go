@@ -27,7 +27,7 @@ import (
 
 // Config service config
 type Config struct {
-	LogLevel int             `json:"log_level"`
+	LogLevel log.Level       `json:"log_level"`
 	AuditLog auditlog.Config `json:"auditlog"`
 
 	App struct {

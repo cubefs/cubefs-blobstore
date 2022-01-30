@@ -36,6 +36,8 @@ func TestExtLogger(t *testing.T) {
 	l.Debug("test logger debug ", "blobstore")
 
 	l.SetOutputLevel(Linfo)
+	l.Printf("test logger printf %s", "blobstore")
+	l.Println("test logger println ", "blobstore")
 	l.Infof("test logger infof %s", "blobstore")
 	l.Info("test logger info ", "blobstore")
 

@@ -289,11 +289,11 @@ const (
 	defaultCalldepth = 3
 )
 
-func (s *spanImpl) output(lvl int, v []interface{}) {
+func (s *spanImpl) output(lvl log.Level, v []interface{}) {
 	log.DefaultLogger.Output(s.String(), lvl, defaultCalldepth, fmt.Sprintln(v...))
 }
 
-func (s *spanImpl) outputf(lvl int, format string, v []interface{}) {
+func (s *spanImpl) outputf(lvl log.Level, format string, v []interface{}) {
 	log.DefaultLogger.Output(s.String(), lvl, defaultCalldepth, fmt.Sprintf(format, v...))
 }
 

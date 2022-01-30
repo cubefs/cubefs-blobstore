@@ -40,7 +40,7 @@ type logWriter struct {
 // output buffer with reused bytes pool.
 func New(out io.Writer, calldepth int) Logger {
 	l := &logger{
-		level:     Linfo,
+		level:     int32(Linfo),
 		calldepth: calldepth,
 		pool: sync.Pool{
 			New: func() interface{} {
@@ -52,7 +52,7 @@ func New(out io.Writer, calldepth int) Logger {
 	return l
 }
 
-func (l *logger) Output(id string, lvl int, calldepth int, s string) error {
+func (l *logger) Output(id string, lvl Level, calldepth int, s string) error {
 	if int32(lvl) < atomic.LoadInt32(&l.level) || lvl >= maxLevel {
 		return nil
 	}
@@ -85,11 +85,11 @@ func (l *logger) Output(id string, lvl int, calldepth int, s string) error {
 
 // -----------------------------------------
 
-func (l *logger) outputf(lvl int, format string, v []interface{}) {
+func (l *logger) outputf(lvl Level, format string, v []interface{}) {
 	l.Output("", lvl, l.calldepth, fmt.Sprintf(format, v...))
 }
 
-func (l *logger) output(lvl int, v []interface{}) {
+func (l *logger) output(lvl Level, v []interface{}) {
 	l.Output("", lvl, l.calldepth, fmt.Sprintln(v...))
 }
 
@@ -132,22 +132,22 @@ func (l *logger) Panic(v ...interface{}) {
 
 // -----------------------------------------
 
-func (l *logger) GetOutputLevel() int {
-	return int(atomic.LoadInt32(&l.level))
+func (l *logger) GetOutputLevel() Level {
+	return Level(atomic.LoadInt32(&l.level))
 }
 
 func (l *logger) SetOutput(w io.Writer) {
 	l.writer.Store(&logWriter{w})
 }
 
-func (l *logger) SetOutputLevel(lvl int) {
+func (l *logger) SetOutputLevel(lvl Level) {
 	if lvl >= maxLevel {
 		lvl = Lfatal
 	}
 	atomic.StoreInt32(&l.level, int32(lvl))
 }
 
-func (l *logger) formatOutput(buf *bytes.Buffer, t time.Time, file string, line int, lvl int) {
+func (l *logger) formatOutput(buf *bytes.Buffer, t time.Time, file string, line int, lvl Level) {
 	year, month, day := t.Date()
 	itoa(buf, year, 4)
 	buf.WriteByte('/')

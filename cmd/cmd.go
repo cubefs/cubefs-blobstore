@@ -42,11 +42,11 @@ const (
 )
 
 type LogConfig struct {
-	Level      int    `json:"level"`
-	Filename   string `json:"filename"`
-	MaxSize    int    `json:"maxsize"`
-	MaxAge     int    `json:"maxage"`
-	MaxBackups int    `json:"maxbackups"`
+	Level      log.Level `json:"level"`
+	Filename   string    `json:"filename"`
+	MaxSize    int       `json:"maxsize"`
+	MaxAge     int       `json:"maxage"`
+	MaxBackups int       `json:"maxbackups"`
 }
 
 type Config struct {

@@ -15,16 +15,18 @@
 package log
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // defines log level
 const (
-	Ldebug = iota
+	Ldebug Level = iota
 	Linfo
 	Lwarn
 	Lerror
@@ -32,6 +34,48 @@ const (
 	Lfatal
 	maxLevel
 )
+
+// Level type log level
+type Level int
+
+// UnmarshalJSON unserialize log level with json.
+// Try compatible digit firstly then string.
+func (l *Level) UnmarshalJSON(data []byte) error {
+	if lvl, err := strconv.Atoi(string(data)); err == nil {
+		*l = Level(lvl)
+		return nil
+	}
+
+	var lvlName string
+	json.Unmarshal(data, &lvlName)
+	lvl, exist := levelMapping[strings.ToLower(lvlName)]
+	if !exist {
+		return fmt.Errorf("invalid log level: %s", string(data))
+	}
+	*l = lvl
+	return nil
+}
+
+// UnmarshalYAML unserialize log level with yaml.
+func (l *Level) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var lvlName string
+	unmarshal(&lvlName)
+	lvl, exist := levelMapping[strings.ToLower(lvlName)]
+	if !exist {
+		return fmt.Errorf("invalid log level: %s", lvlName)
+	}
+	*l = lvl
+	return nil
+}
+
+var levelMapping = map[string]Level{
+	"debug": Ldebug,
+	"info":  Linfo,
+	"warn":  Lwarn,
+	"error": Lerror,
+	"panic": Lpanic,
+	"fatal": Lfatal,
+}
 
 var levelToStrings = []string{
 	"[DEBUG]",
@@ -68,10 +112,10 @@ type Logger interface {
 	BaseLogger
 
 	// atomically control log level
-	GetOutputLevel() int
-	SetOutputLevel(logLevel int)
+	GetOutputLevel() Level
+	SetOutputLevel(logLevel Level)
 	SetOutput(w io.Writer)
-	Output(id string, lvl int, calldepth int, s string) error
+	Output(id string, lvl Level, calldepth int, s string) error
 
 	// implement raft Logger with these two function
 	Warningf(format string, v ...interface{})
@@ -94,12 +138,12 @@ func ChangeDefaultLevelHandler() (string, http.HandlerFunc) {
 			return
 		}
 		level, err := strconv.Atoi(req.FormValue("level"))
-		if err != nil || level < 0 || level >= maxLevel {
+		if err != nil || level < 0 || level >= int(maxLevel) {
 			resp.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		DefaultLogger.SetOutputLevel(level)
+		DefaultLogger.SetOutputLevel(Level(level))
 	}
 }
 
@@ -135,6 +179,6 @@ func Panic(v ...interface{}) {
 	panic(s)
 }
 
-func GetOutputLevel() int    { return DefaultLogger.GetOutputLevel() }
-func SetOutputLevel(lvl int) { DefaultLogger.SetOutputLevel(lvl) }
-func SetOutput(w io.Writer)  { DefaultLogger.SetOutput(w) }
+func GetOutputLevel() Level    { return DefaultLogger.GetOutputLevel() }
+func SetOutputLevel(lvl Level) { DefaultLogger.SetOutputLevel(lvl) }
+func SetOutput(w io.Writer)    { DefaultLogger.SetOutput(w) }

@@ -2,7 +2,7 @@
     "max_procs": 0,
     "shutdown_timeout_s": 30,
     "log": {
-        "level": 0,
+        "level": "debug",
         "filename": "/tmp/access.log",
         "maxsize": 1024,
         "maxage": 7,

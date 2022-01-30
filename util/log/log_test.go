@@ -15,6 +15,7 @@
 package log
 
 import (
+	"encoding/json"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -39,6 +41,62 @@ func init() {
 	server := httptest.NewServer(mux)
 	httpAddr = server.URL
 	logLevelPath = path
+}
+
+func TestLoggerUnmarshal(t *testing.T) {
+	type withLogLevel struct {
+		Level Level  `json:"level" yaml:"level"`
+		Other string `json:"other" yaml:"other"`
+	}
+
+	for _, cs := range []struct {
+		lvlName  string
+		hasError bool
+		level    Level
+	}{
+		{"", true, -1},
+		{"0", false, Ldebug},
+		{"2", false, Lwarn},
+		{"-1", false, Level(-1)},
+		{`"1"`, true, -1},
+		{"-1x", true, -1},
+		{`"info"`, false, Linfo},
+		{`"InFo"`, false, Linfo},
+		{`"InfoX"`, true, -1},
+	} {
+		str := `{"other":"foo bar", "level": ` + cs.lvlName + `}`
+		var data withLogLevel
+		err := json.Unmarshal([]byte(str), &data)
+		if cs.hasError {
+			require.Error(t, err, cs.lvlName)
+		} else {
+			require.NoError(t, err, cs.lvlName)
+			require.Equal(t, cs.level, data.Level, cs.lvlName)
+		}
+	}
+
+	for _, cs := range []struct {
+		lvlName  string
+		hasError bool
+		level    Level
+	}{
+		{"", false, Ldebug},
+		{"0", true, -1},
+		{"2", true, -1},
+		{"info", false, Linfo},
+		{"InFo", false, Linfo},
+		{"InfoX", true, -1},
+	} {
+		str := `level: ` + cs.lvlName
+		var data withLogLevel
+		err := yaml.Unmarshal([]byte(str), &data)
+		if cs.hasError {
+			require.Error(t, err, cs.lvlName)
+		} else {
+			require.NoError(t, err, cs.lvlName)
+			require.Equal(t, cs.level, data.Level, cs.lvlName)
+		}
+	}
 }
 
 func TestLoggerStd(t *testing.T) {

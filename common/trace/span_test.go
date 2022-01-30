@@ -158,7 +158,7 @@ func TestSpan_BaseLogger(t *testing.T) {
 	rootSpan, ctx := StartSpanFromContext(context.Background(), "test baseLogger")
 	defer rootSpan.Finish()
 
-	logLevel := []int{
+	logLevel := []log.Level{
 		log.Ldebug,
 		log.Linfo,
 		log.Lwarn,
