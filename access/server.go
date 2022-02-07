@@ -29,13 +29,13 @@ import (
 	"github.com/cubefs/blobstore/cmd"
 	"github.com/cubefs/blobstore/common/consul"
 	errcode "github.com/cubefs/blobstore/common/errors"
+	"github.com/cubefs/blobstore/common/profile"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
 	"github.com/cubefs/blobstore/common/uptoken"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/util/log"
-	"github.com/cubefs/blobstore/util/profile"
 )
 
 const (
@@ -140,16 +140,16 @@ func (s *Service) RegisterService() {
 
 // RegisterStatus register status handler to profile
 func (s *Service) RegisterStatus() {
-	profile.HandleFunc("/access/status", func(w http.ResponseWriter, req *http.Request) {
+	profile.HandleFunc(http.MethodGet, "/access/status", func(ctx *rpc.Context) {
 		status := s.limiter.Status()
 		data, err := json.MarshalIndent(status, "", "    ")
 		if err != nil {
-			w.Write([]byte(err.Error()))
+			ctx.Writer.Write([]byte(err.Error()))
 			return
 		}
-		w.Header().Set(rpc.HeaderContentType, rpc.MIMEJSON)
-		w.Header().Set(rpc.HeaderContentLength, strconv.Itoa(len(data)))
-		w.Write(data)
+		ctx.Writer.Header().Set(rpc.HeaderContentType, rpc.MIMEJSON)
+		ctx.Writer.Header().Set(rpc.HeaderContentLength, strconv.Itoa(len(data)))
+		ctx.Writer.Write(data)
 	})
 }
 

@@ -15,33 +15,24 @@
 package profile
 
 import (
-	"bufio"
-	"errors"
 	"expvar"
 	"fmt"
-	"log"
-	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/cubefs/blobstore/common/rpc"
 )
 
 const (
-	localhost = "127.0.0.1"
-
-	minPort = 30000
-	maxPort = 31000
-
-	envBindAddr             = "profile_bind_addr"
 	envMetricExporterLabels = "profile_metric_exporter_labels"
 
 	suffixListenAddr     = "_profile_listen_addr"
@@ -50,9 +41,8 @@ const (
 )
 
 var (
-	serveMux    *http.ServeMux
 	profileAddr string
-	listenAddr  string
+	httpRouter  = rpc.New()
 	startTime   = time.Now()
 
 	uptime = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -110,6 +100,25 @@ func (r *route) String() string {
 	return sb.String()
 }
 
+type profileHandler struct{}
+
+func (ph *profileHandler) Handler(w http.ResponseWriter, r *http.Request, f func(http.ResponseWriter, *http.Request)) {
+	path := r.URL.Path
+	addr := r.RemoteAddr
+	handle, _, _ := httpRouter.Router.Lookup(r.Method, path)
+	if handle != nil {
+		// to support local host, need not authentication
+		if strings.HasPrefix(addr, "localhost") || strings.HasPrefix(addr, "127.0.0.1") {
+			httpRouter.ServeHTTP(w, r)
+			return
+		}
+		// todo Authentication manager authority
+		httpRouter.ServeHTTP(w, r)
+		return
+	}
+	f(w, r)
+}
+
 func init() {
 	prometheus.MustRegister(uptime)
 	prometheus.MustRegister(gomaxprocs)
@@ -121,23 +130,33 @@ func init() {
 
 	expvar.Publish("Uptime", expvar.Func(func() interface{} { return time.Since(startTime) / time.Second }))
 	expvar.Publish("NumGoroutine", expvar.Func(func() interface{} { return runtime.NumGoroutine() }))
+}
 
-	serveMux = http.NewServeMux()
-	serveMux.HandleFunc("/", index)
-	serveMux.HandleFunc("/debug/pprof/", pprof.Index)
-	serveMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	serveMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	serveMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	serveMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	serveMux.HandleFunc("/debug/var/", oneExpvar)
-	serveMux.Handle("/debug/vars", expvar.Handler())
-	serveMux.Handle("/metrics", promhttp.Handler())
+func NewProfileHandler(addr string) rpc.ProgressHandler {
+	// without profile setting
+	if without {
+		return nil
+	}
+
+	ph := &profileHandler{}
+
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/", index)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/profile", pprof.Profile)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/symbol", pprof.Symbol)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/trace", pprof.Trace)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/vars", expvar.Handler().ServeHTTP)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/metrics", promhttp.Handler().ServeHTTP)
+	httpRouter.Handle(http.MethodGet, "/debug/var/", oneExpvar)
+	httpRouter.Handle(http.MethodGet, "/debug/var/:key", oneExpvar, rpc.OptArgsURI(), rpc.OptArgsQuery())
 
 	router.mu.Lock()
 	router.vars = []string{
 		"/debug/vars",
-		"/debug/var/",
+		"/debug/var/*",
 	}
+
 	router.pprof = []string{
 		"/debug/pprof/",
 		"/debug/pprof/cmdline",
@@ -150,19 +169,11 @@ func init() {
 	}
 	router.mu.Unlock()
 
-	// without profile setting
-	if without {
-		return
+	if strings.HasPrefix(addr, ":") {
+		profileAddr = "http://127.0.0.1" + addr
+	} else {
+		profileAddr = "http://" + addr
 	}
-
-	ln, err := tryListen()
-	if err != nil {
-		log.Panic("profile listen failed", err)
-		return
-	}
-
-	listenAddr = ln.Addr().String()
-	profileAddr = "http://" + ln.Addr().String()
 
 	// do not gen files in `go test`
 	if !strings.HasSuffix(os.Args[0], ".test") {
@@ -170,83 +181,34 @@ func init() {
 		genDumpScript()
 		genMetricExporter()
 	}
-
-	go func() {
-		if err := http.Serve(ln, serveMux); err != nil {
-			log.Panic(err)
-		}
-	}()
+	return ph
 }
 
-// HandleFunc register handler func to profile serve multiplexer.
-func HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	router.AddUserPath(pattern)
-	serveMux.HandleFunc(pattern, handler)
-}
-
-// Handle register handler to profile serve multiplexer.
-func Handle(pattern string, handler http.Handler) {
-	router.AddUserPath(pattern)
-	serveMux.Handle(pattern, handler)
-}
-
-// ListenOn returns address of profile listen on, like host:port
-func ListenOn() string {
-	if listenAddr == "" {
-		panic("profile did not listened")
-	}
-	return listenAddr
-}
-
-// handle path /, show usage
+// handle path /debug/ , show usage
 func index(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, router.String())
 }
 
 // handler path /debug/var/<var>, get one expvar
-func oneExpvar(w http.ResponseWriter, r *http.Request) {
-	key := r.URL.Path[len("/debug/var/"):]
+func oneExpvar(ctx *rpc.Context) {
+	key := ctx.Request.URL.Path[len("/debug/var/"):]
 	if key == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.RespondStatus(http.StatusBadRequest)
 		return
 	}
 	val := expvar.Get(key)
 	if val == nil {
-		w.WriteHeader(http.StatusNotFound)
+		ctx.RespondStatus(http.StatusNotFound)
 		return
 	}
-	w.Write([]byte(val.String()))
+	ctx.Writer.Write([]byte(val.String()))
 }
 
-func try2GetAddr() string {
-	fd, err := os.Open(os.Args[0] + suffixListenAddr)
-	if err != nil {
-		return ""
+// HandleFunc register handler func to profile serve multiplexer.
+func HandleFunc(method, pattern string, handler rpc.HandlerFunc, opts ...rpc.ServerOption) {
+	if without {
+		return
 	}
-	defer fd.Close()
-
-	if line, _, err := bufio.NewReader(fd).ReadLine(); err == nil {
-		return string(line)
-	}
-	return ""
-}
-
-func tryListen() (ln net.Listener, err error) {
-	if addr := os.Getenv(envBindAddr); addr != "" {
-		if ln, err = net.Listen("tcp4", addr); err == nil {
-			return
-		}
-	}
-	if addr := try2GetAddr(); addr != "" {
-		if ln, err = net.Listen("tcp4", addr); err == nil {
-			return
-		}
-	}
-
-	for port := minPort; port < maxPort; port++ {
-		if ln, err = net.Listen("tcp4", localhost+":"+strconv.Itoa(port)); err == nil {
-			return
-		}
-	}
-	return nil, errors.New("cannot bind tcp4 address")
+	router.AddUserPath(pattern)
+	httpRouter.Handle(method, pattern, handler, opts...)
 }

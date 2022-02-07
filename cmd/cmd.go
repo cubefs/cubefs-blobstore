@@ -26,15 +26,15 @@ import (
 	"time"
 
 	// module release init functions
-	_ "github.com/cubefs/blobstore/util/version"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/cubefs/blobstore/common/profile"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/rpc/auditlog"
 	"github.com/cubefs/blobstore/common/rpc/auth"
 	"github.com/cubefs/blobstore/util/graceful"
 	"github.com/cubefs/blobstore/util/log"
-	"github.com/cubefs/blobstore/util/profile"
+	_ "github.com/cubefs/blobstore/util/version"
 )
 
 const (
@@ -125,6 +125,11 @@ func Main(args []string) {
 	if mod.graceful {
 		programEntry := func(state *graceful.State) {
 			router, handlers := mod.SetUp()
+			if profileHandler := profile.NewProfileHandler(cfg.BindAddr); profileHandler != nil {
+				temp := []rpc.ProgressHandler{profileHandler}
+				temp = append(temp, handlers...)
+				handlers = temp
+			}
 
 			httpServer := &http.Server{
 				Addr:    cfg.BindAddr,
@@ -157,6 +162,11 @@ func Main(args []string) {
 	}
 
 	router, handlers := mod.SetUp()
+	if profileHandler := profile.NewProfileHandler(cfg.BindAddr); profileHandler != nil {
+		temp := []rpc.ProgressHandler{profileHandler}
+		temp = append(temp, handlers...)
+		handlers = temp
+	}
 	httpServer := &http.Server{
 		Addr:    cfg.BindAddr,
 		Handler: newMiddleWareHandler(cfg.Auth, router, lh, handlers),
@@ -194,5 +204,7 @@ func newMiddleWareHandler(authCfg auth.Config, r *rpc.Router, lh rpc.ProgressHan
 
 func init() {
 	logLevelPath, logLevelHandler := log.ChangeDefaultLevelHandler()
-	profile.HandleFunc(logLevelPath, logLevelHandler)
+	profile.HandleFunc(http.MethodPost, logLevelPath, func(ctx *rpc.Context) {
+		logLevelHandler.ServeHTTP(ctx.Writer, ctx.Request)
+	})
 }
