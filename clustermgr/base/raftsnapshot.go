@@ -31,7 +31,7 @@ type SnapshotDB interface {
 type raftSnapshot struct {
 	name       string
 	current    int
-	items      []snapshotItem
+	items      []SnapshotItem
 	dbs        map[string]SnapshotDB
 	applyIndex uint64
 	patchNum   int
@@ -40,15 +40,15 @@ type raftSnapshot struct {
 	closeCallback func()
 }
 
-type snapshotItem struct {
+type SnapshotItem struct {
 	DbName string `json:"db_name"`
 	CfName string `json:"cf_name"`
 	iter   kvstore.Iterator
 	snap   *kvstore.Snapshot
 }
 
-type snapshotData struct {
-	Header snapshotItem
+type SnapshotData struct {
+	Header SnapshotItem
 	Key    []byte
 	Value  []byte
 }
@@ -70,15 +70,15 @@ ITERATE:
 		if iter.Err() != nil {
 			return nil, err
 		}
-		snapData := &snapshotData{
-			Header: snapshotItem{
+		snapData := &SnapshotData{
+			Header: SnapshotItem{
 				DbName: dbName,
 				CfName: cfName,
 			},
 			Key:   iter.Key().Data(),
 			Value: iter.Value().Data(),
 		}
-		one, err := encodeSnapshotData(snapData)
+		one, err := EncodeSnapshotData(snapData)
 		iter.Key().Free()
 		iter.Value().Free()
 		if err != nil {
@@ -119,7 +119,7 @@ func (r *raftSnapshot) Index() uint64 {
 	return r.applyIndex
 }
 
-func encodeSnapshotData(src *snapshotData) ([]byte, error) {
+func EncodeSnapshotData(src *SnapshotData) ([]byte, error) {
 	b := bytes.NewBuffer(nil)
 	dbNameSize := int32(len(src.Header.DbName))
 	cfNameSize := int32(len(src.Header.CfName))
@@ -158,8 +158,8 @@ func encodeSnapshotData(src *snapshotData) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func decodeSnapshotData(reader io.Reader) (ret *snapshotData, err error) {
-	_ret := &snapshotData{}
+func DecodeSnapshotData(reader io.Reader) (ret *SnapshotData, err error) {
+	_ret := &SnapshotData{}
 	dbNameSize := int32(0)
 	cfNameSize := int32(0)
 	keySize := int32(0)

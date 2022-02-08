@@ -116,3 +116,7 @@ func (c *Client) Stat(ctx context.Context) (ret *StatInfo, err error) {
 	err = c.GetWith(ctx, "/stat", ret)
 	return
 }
+
+func (c *Client) Snapshot(ctx context.Context) (*http.Response, error) {
+	return c.Get(ctx, "/snapshot/dump")
+}

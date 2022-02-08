@@ -21,12 +21,16 @@ import (
 	"io"
 )
 
-var (
-	ApplyIndexKey              = []byte("raft_apply_index")
+const (
 	defaultFlushNumInterval    = uint64(10000)
 	defaultFlushTimeIntervalS  = 300
 	defaultFlushCheckIntervalS = 2
 	defaultTruncateNumInterval = uint64(50000)
+)
+
+var (
+	ApplyIndexKey = []byte("raft_apply_index")
+	RaftMemberKey = []byte("#raft_members")
 )
 
 type RaftApplier interface {

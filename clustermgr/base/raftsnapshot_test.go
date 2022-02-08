@@ -37,16 +37,16 @@ func TestEncodeSnapshotData(t *testing.T) {
 	key := "testKey"
 	value := "testValue"
 
-	snap := &snapshotData{
-		Header: snapshotItem{DbName: dbName, CfName: cfName},
+	snap := &SnapshotData{
+		Header: SnapshotItem{DbName: dbName, CfName: cfName},
 		Key:    []byte(key),
 		Value:  []byte(value),
 	}
 
-	data, err := encodeSnapshotData(snap)
+	data, err := EncodeSnapshotData(snap)
 	assert.NoError(t, err)
 
-	decodeSnap, err := decodeSnapshotData(bytes.NewBuffer(data))
+	decodeSnap, err := DecodeSnapshotData(bytes.NewBuffer(data))
 	assert.NoError(t, err)
 
 	assert.Equal(t, snap.Header.DbName, decodeSnap.Header.DbName)

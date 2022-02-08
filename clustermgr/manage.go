@@ -15,6 +15,9 @@
 package clustermgr
 
 import (
+	"io"
+	"strconv"
+
 	"github.com/cubefs/blobstore/api/clustermgr"
 	apierrors "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/rpc"
@@ -112,6 +115,38 @@ func (s *Service) Stat(c *rpc.Context) {
 	ret.SpaceStat = *(s.DiskMgr.Stat(ctx))
 	ret.VolumeStat = s.VolumeMgr.Stat(ctx)
 	c.RespondJSON(ret)
+}
+
+// SnapshotDump will dump all data using snapshot
+func (s *Service) SnapshotDump(c *rpc.Context) {
+	span := trace.SpanFromContextSafe(c.Request.Context())
+	span.Info("accept SnapshotDump request")
+
+	snapshot, err := s.Snapshot()
+	if err != nil {
+		c.RespondError(err)
+	}
+	c.Writer.Header().Set(clustermgr.RaftSnapshotIndexHeaderKey, strconv.FormatUint(snapshot.Index(), 10))
+	c.Writer.Header().Set(clustermgr.RaftSnapshotNameHeaderKey, snapshot.Name())
+	for {
+		buf, err := snapshot.Read()
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+			span.Errorf("read snapshot failed: %s", err.Error())
+			return
+		}
+		n, err := c.Writer.Write(buf)
+		if err != nil {
+			span.Warnf("write snapshot data failed: %s", err.Error())
+			return
+		}
+		if n != len(buf) {
+			span.Warnf("write snapshpot data failed: %s", io.ErrShortWrite)
+			return
+		}
+	}
 }
 
 func (s *Service) checkPeerIDExist(peerID uint64) bool {

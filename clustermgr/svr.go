@@ -249,9 +249,27 @@ func New(cfg *Config) (*Service, error) {
 	raftNode.RegistRaftApplier(service)
 	service.raftNode = raftNode
 
-	cfg.RaftConfig.ServerConfig.KV = raftDB
 	cfg.RaftConfig.ServerConfig.SM = service
 	cfg.RaftConfig.ServerConfig.Applied = applyIndex
+	members, err := raftNode.GetRaftMembers(context.Background())
+	if err != nil {
+		log.Fatalf("get raft members failed, err: %v", err.Error())
+	}
+	peers := make(map[uint64]string)
+	learners := make(map[uint64]string)
+	for i := range members {
+		if members[i].Learner {
+			learners[members[i].ID] = members[i].Host
+			continue
+		}
+		peers[members[i].ID] = members[i].Host
+	}
+	if len(peers) != 0 {
+		cfg.RaftConfig.ServerConfig.Peers = peers
+	}
+	if len(learners) != 0 {
+		cfg.RaftConfig.ServerConfig.Learners = learners
+	}
 	raftServer, err := raftserver.NewRaftServer(&cfg.RaftConfig.ServerConfig)
 	if err != nil {
 		log.Fatalf("new raft server failed, err: %v", err)

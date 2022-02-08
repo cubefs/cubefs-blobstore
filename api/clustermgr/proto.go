@@ -24,7 +24,9 @@ import (
 )
 
 const (
-	ConsulRegisterPath = "ebs/%s/clusters/"
+	ConsulRegisterPath         = "ebs/%s/clusters/"
+	RaftSnapshotIndexHeaderKey = "Raft-Snapshot-Index"
+	RaftSnapshotNameHeaderKey  = "Raft-Snapshot-Name"
 )
 
 type ClusterInfo struct {

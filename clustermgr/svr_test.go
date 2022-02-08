@@ -30,7 +30,6 @@ import (
 	"github.com/cubefs/blobstore/clustermgr/diskmgr"
 	"github.com/cubefs/blobstore/clustermgr/volumemgr"
 	"github.com/cubefs/blobstore/common/codemode"
-	apierrors "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/raftserver"
 	"github.com/cubefs/blobstore/common/rpc"
@@ -140,42 +139,6 @@ func TestBidAlloc(t *testing.T) {
 
 		_, err = testClusterClient.AllocBid(ctx, &clustermgr.BidScopeArgs{Count: 100001})
 		assert.Error(t, err)
-	}
-}
-
-func TestManage(t *testing.T) {
-	testService := initTestService(t)
-	defer clear(testService)
-	defer testService.Close()
-	testClusterClient := initTestClusterClient(testService)
-
-	_, ctx := trace.StartSpanFromContext(context.Background(), "")
-
-	// test member add or remove
-	{
-		err := testClusterClient.AddMember(ctx, &clustermgr.AddMemberArgs{PeerID: 2, Host: "127.0.0.1", MemberType: clustermgr.MemberTypeMin})
-		assert.NotNil(t, err)
-
-		err = testClusterClient.AddMember(ctx, &clustermgr.AddMemberArgs{PeerID: 2, Host: "127.0.0.1", MemberType: clustermgr.MemberTypeNormal})
-		assert.NoError(t, err)
-
-		err = testClusterClient.RemoveMember(ctx, 10)
-		assert.Equal(t, apierrors.ErrIllegalArguments.Error(), err.Error())
-		err = testClusterClient.RemoveMember(ctx, 1)
-		assert.Equal(t, apierrors.ErrRequestNotAllow.Error(), err.Error())
-
-		err = testClusterClient.AddMember(ctx, &clustermgr.AddMemberArgs{PeerID: 2, Host: "127.0.0.1", MemberType: clustermgr.MemberTypeNormal})
-		assert.Equal(t, apierrors.CodeDuplicatedMemberInfo, err.(rpc.HTTPError).StatusCode())
-
-		err = testClusterClient.TransferLeadership(ctx, 2)
-		assert.NoError(t, err)
-	}
-
-	// test stat
-	{
-		statInfo, err := testClusterClient.Stat(ctx)
-		assert.NoError(t, err)
-		assert.NotNil(t, statInfo)
 	}
 }
 

@@ -126,5 +126,7 @@ func NewHandler(service *Service) *rpc.Router {
 
 	rpc.GET("/stat", service.Stat)
 
+	rpc.GET("/snapshot/dump", service.SnapshotDump)
+
 	return rpc.DefaultRouter
 }

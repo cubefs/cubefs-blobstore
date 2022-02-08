@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -41,6 +42,16 @@ type RaftNodeConfig struct {
 	NodeProtocol        string            `json:"node_protocol"`
 	Nodes               map[uint64]string `json:"nodes"`
 	ApplyIndex          uint64            `json:"-"`
+}
+
+type RaftMembers struct {
+	Mbs []RaftMember `json:"members"`
+}
+
+type RaftMember struct {
+	ID      uint64 `json:"id"`
+	Host    string `json:"host"`
+	Learner bool   `json:"learner"`
 }
 
 type RaftNode struct {
@@ -151,6 +162,96 @@ func (r *RaftNode) RecordApplyIndex(ctx context.Context, index uint64, isFlush b
 	return r.saveStableApplyIndex(index)
 }
 
+func (r *RaftNode) GetRaftMembers(ctx context.Context) ([]RaftMember, error) {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+	val, err := r.raftDB.Get(RaftMemberKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(val) == 0 {
+		return nil, nil
+	}
+
+	mbrs := &RaftMembers{}
+	err = json.Unmarshal(val, mbrs)
+	if err != nil {
+		return nil, err
+	}
+	return mbrs.Mbs, nil
+}
+
+func (r *RaftNode) RecordRaftMember(ctx context.Context, member RaftMember, isDelete bool) error {
+	if isDelete {
+		return r.delRaftMember(ctx, member.ID)
+	}
+	return r.addRaftMember(ctx, member)
+}
+
+func (r *RaftNode) addRaftMember(ctx context.Context, member RaftMember) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	val, err := r.raftDB.Get(RaftMemberKey)
+	if err != nil {
+		return err
+	}
+	mbrs := &RaftMembers{}
+	if len(val) != 0 {
+		err = json.Unmarshal(val, mbrs)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i := range mbrs.Mbs {
+		if mbrs.Mbs[i].ID == member.ID {
+			mbrs.Mbs[i].Host = member.Host
+			mbrs.Mbs[i].Learner = member.Learner
+			goto SAVE
+		}
+	}
+	mbrs.Mbs = append(mbrs.Mbs, member)
+
+SAVE:
+	val, err = json.Marshal(mbrs)
+	if err != nil {
+		return err
+	}
+	return r.raftDB.Put(RaftMemberKey, val)
+}
+
+func (r *RaftNode) delRaftMember(ctx context.Context, nodeID uint64) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	val, err := r.raftDB.Get(RaftMemberKey)
+	if err != nil {
+		return err
+	}
+	if len(val) == 0 {
+		return nil
+	}
+
+	mbrs := &RaftMembers{}
+	err = json.Unmarshal(val, mbrs)
+	if err != nil {
+		return err
+	}
+	after := make([]RaftMember, 0)
+	for i := range mbrs.Mbs {
+		if mbrs.Mbs[i].ID != nodeID {
+			after = append(after, mbrs.Mbs[i])
+		}
+	}
+	mbrs.Mbs = after
+	val, err = json.Marshal(mbrs)
+	if err != nil {
+		return err
+	}
+	return r.raftDB.Put(RaftMemberKey, val)
+}
+
 func (r *RaftNode) NotifyLeaderChange(ctx context.Context, leader uint64, host string) {
 	wg := sync.WaitGroup{}
 	for i := range r.appliers {
@@ -191,21 +292,21 @@ func (r *RaftNode) SetLeaderHost(idx uint64, host string) {
 
 func (r *RaftNode) CreateRaftSnapshot(dbs map[string]SnapshotDB, patchNum int) raftserver.Snapshot {
 	applyIndex := r.GetStableApplyIndex()
-	items := make([]snapshotItem, 0)
+	items := make([]SnapshotItem, 0)
 	for dbName := range dbs {
 		cfs := dbs[dbName].GetAllCfNames()
 		if len(cfs) == 0 {
 			snap := dbs[dbName].NewSnapshot()
 			iter := dbs[dbName].NewIterator(snap)
 			iter.SeekToFirst()
-			items = append(items, snapshotItem{DbName: dbName, snap: snap, iter: iter})
+			items = append(items, SnapshotItem{DbName: dbName, snap: snap, iter: iter})
 			continue
 		}
 		for i := range cfs {
 			snap := dbs[dbName].Table(cfs[i]).NewSnapshot()
 			iter := dbs[dbName].Table(cfs[i]).NewIterator(snap)
 			iter.SeekToFirst()
-			items = append(items, snapshotItem{DbName: dbName, CfName: cfs[i], snap: snap, iter: iter})
+			items = append(items, SnapshotItem{DbName: dbName, CfName: cfs[i], snap: snap, iter: iter})
 		}
 	}
 	// atomic add openSnapshotsNum
@@ -233,7 +334,7 @@ func (r *RaftNode) ApplyRaftSnapshot(ctx context.Context, dbs map[string]Snapsho
 	for data, err = st.Read(); err == nil; data, err = st.Read() {
 		reader := bytes.NewBuffer(data)
 		for {
-			snapData, err := decodeSnapshotData(reader)
+			snapData, err := DecodeSnapshotData(reader)
 			if err != nil {
 				if err == io.EOF {
 					break

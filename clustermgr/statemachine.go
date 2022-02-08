@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.etcd.io/etcd/raft/v3/raftpb"
+
 	"github.com/cubefs/blobstore/clustermgr/base"
 	"github.com/cubefs/blobstore/common/raftserver"
 	"github.com/cubefs/blobstore/common/trace"
@@ -36,9 +38,28 @@ var applyTaskPool = taskpool.New(5, 5)
 
 func (s *Service) ApplyMemberChange(cc raftserver.ConfChange, index uint64) error {
 	// record apply index and flush all memory data
-	_, ctx := trace.StartSpanFromContext(context.Background(), "")
-	s.raftNode.RecordApplyIndex(ctx, index, true)
-	return nil
+	span, ctx := trace.StartSpanFromContext(context.Background(), "")
+	span.Info("receive member change: ", cc)
+	member := base.RaftMember{
+		ID:   cc.NodeID,
+		Host: string(cc.Context),
+	}
+	switch cc.Type {
+	case raftpb.ConfChangeAddNode:
+	case raftpb.ConfChangeAddLearnerNode:
+	case raftpb.ConfChangeUpdateNode:
+		if cc.Type == raftpb.ConfChangeAddLearnerNode {
+			member.Learner = true
+		}
+		if err := s.raftNode.RecordRaftMember(ctx, member, false); err != nil {
+			return err
+		}
+	case raftpb.ConfChangeRemoveNode:
+		if err := s.raftNode.RecordRaftMember(ctx, member, true); err != nil {
+			return err
+		}
+	}
+	return s.raftNode.RecordApplyIndex(ctx, index, true)
 }
 
 func (s *Service) Apply(data [][]byte, index uint64) error {

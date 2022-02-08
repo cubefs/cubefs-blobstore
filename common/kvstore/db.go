@@ -106,7 +106,7 @@ func OpenDB(path string, isSync bool, opt *RocksDBOption) (KVStore, error) {
 	if path == "" {
 		return nil, &os.PathError{Op: "open", Path: path, Err: syscall.ENOENT}
 	}
-	if !opt.CreateIfMissing {
+	if opt != nil && !opt.CreateIfMissing {
 		_, err := os.Stat(path)
 		if err != nil && os.IsNotExist(err) {
 			return nil, ErrNotFound
