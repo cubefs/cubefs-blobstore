@@ -182,12 +182,11 @@ func (l *largeFile) Write(b []byte) (n int, err error) {
 }
 
 func (l *largeFile) writeAt(buf []byte, off int64) (n int, err error) {
-	fh, _, err := l.getFileHandler(off)
+	fh, _, err := l.getFileHandler(off, false)
 	if err != nil {
 		return 0, err
 	}
-	woff := off - fh.off
-	return fh.f.WriteAt(buf, woff)
+	return fh.f.WriteAt(buf, off-fh.off)
 }
 
 func (l *largeFile) ReadAt(buf []byte, off int64) (n int, err error) {
@@ -199,7 +198,7 @@ func (l *largeFile) ReadAt(buf []byte, off int64) (n int, err error) {
 		return 0, errors.New("file chunk size bits too small or read buffer too large")
 	}
 
-	fh, _, err := l.getFileHandler(off)
+	fh, _, err := l.getFileHandler(off, false)
 	if err != nil {
 		return 0, err
 	}
@@ -263,9 +262,12 @@ func (l *largeFile) Rotate() error {
 	if err != nil {
 		return err
 	}
+	if fsize == 0 {
+		return nil
+	}
 	idx := fsize >> l.FileChunkSizeBits
 	newpos := (idx + 1) << l.FileChunkSizeBits
-	_, _, err = l.getFileHandler(newpos)
+	_, _, err = l.getFileHandler(newpos, true)
 	if err != nil {
 		return err
 	}
@@ -288,7 +290,7 @@ func (l *largeFile) Close() error {
 	return nil
 }
 
-func (l *largeFile) getFileHandler(off int64) (fh *fileItem, isOpenNewFile bool, err error) {
+func (l *largeFile) getFileHandler(off int64, rotateNew bool) (fh *fileItem, isOpenNewFile bool, err error) {
 	idx := off >> l.FileChunkSizeBits
 	bucketIdx := idx % defaultFileItemBucketNum
 
@@ -331,8 +333,18 @@ func (l *largeFile) getFileHandler(off int64) (fh *fileItem, isOpenNewFile bool,
 		if prev == nil {
 			fileStartOff = 0
 		} else {
+			prev, err = os.Stat(l.getAbsoluteFileName(prev.Name()))
+			if err != nil {
+				return
+			}
+			l.fisM[idx-1] = prev
 			_, lastOffset, _ := l.decodeFileName(prev.Name())
-			fileStartOff = lastOffset + prev.Size() + 1
+			fileStartOff = lastOffset
+			if rotateNew && prev.Size() < 1<<l.FileChunkSizeBits {
+				fileStartOff += 1 << l.FileChunkSizeBits
+			} else {
+				fileStartOff += prev.Size()
+			}
 		}
 		f, err = os.OpenFile(l.encodeFileName(idx, fileStartOff), os.O_RDWR|os.O_CREATE, 0o666)
 		isOpenNewFile = true
