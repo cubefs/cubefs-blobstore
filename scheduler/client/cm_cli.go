@@ -525,7 +525,7 @@ func (c *ClusterMgrClient) ListDropDisks(ctx context.Context) (disks []*DiskInfo
 		span.Debugf("ListDropDisks ret info %+v", *info)
 		disk := DiskInfoSimple{}
 		disk.set(info)
-		span.Infof("disk status %d", disk.Status)
+		span.Infof("disk status %d %s", disk.Status, disk.Status.String())
 		if disk.IsHealth() {
 			disks = append(disks, &disk)
 		}

@@ -31,16 +31,16 @@ func TestPriorityConsumer(t *testing.T) {
 	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)
 	mockFetchResponse.SetVersion(1)
 	for i := 0; i < 1000; i++ {
-		mockFetchResponse.SetMessage("my_topic", 0, int64(i), msg)
+		mockFetchResponse.SetMessage(testTopic, 0, int64(i), msg)
 	}
 
 	broker0.SetHandlerByMap(map[string]sarama.MockResponse{
 		"MetadataRequest": sarama.NewMockMetadataResponse(t).
 			SetBroker(broker0.Addr(), broker0.BrokerID()).
-			SetLeader("my_topic", 0, broker0.BrokerID()),
+			SetLeader(testTopic, 0, broker0.BrokerID()),
 		"OffsetRequest": sarama.NewMockOffsetResponse(t).
-			SetOffset("my_topic", 0, sarama.OffsetOldest, 0).
-			SetOffset("my_topic", 0, sarama.OffsetNewest, 2345),
+			SetOffset(testTopic, 0, sarama.OffsetOldest, 0).
+			SetOffset(testTopic, 0, sarama.OffsetNewest, 2345),
 		"FetchRequest": mockFetchResponse,
 	})
 
@@ -49,7 +49,7 @@ func TestPriorityConsumer(t *testing.T) {
 	cfgs := []PriorityConsumerConfig{
 		{
 			KafkaConfig: KafkaConfig{
-				Topic:      "my_topic",
+				Topic:      testTopic,
 				BrokerList: []string{broker0.Addr()},
 				Partitions: []int32{0},
 			},
@@ -82,7 +82,7 @@ func TestPriorityConsumer(t *testing.T) {
 	cfgs = []PriorityConsumerConfig{
 		{
 			KafkaConfig: KafkaConfig{
-				Topic:      "my_topic",
+				Topic:      testTopic,
 				BrokerList: []string{},
 				Partitions: []int32{0},
 			},

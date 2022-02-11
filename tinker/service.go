@@ -17,7 +17,6 @@ package tinker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/cubefs/blobstore/api/blobnode"
 	"github.com/cubefs/blobstore/api/clustermgr"
@@ -39,8 +38,8 @@ import (
 )
 
 var (
-	service *Service
-	conf    Config
+	gService *Service
+	gConfig  Config
 )
 
 func init() {
@@ -55,20 +54,19 @@ func init() {
 
 func initConfig(args []string) (*cmd.Config, error) {
 	config.Init("f", "", "tinker.conf")
-
-	if err := config.Load(&conf); err != nil {
+	if err := config.Load(&gConfig); err != nil {
 		return nil, err
 	}
-	return &conf.Config, nil
+	return &gConfig.Config, nil
 }
 
 func setUp() (*rpc.Router, []rpc.ProgressHandler) {
 	var err error
-	service, err = NewService(conf)
+	gService, err = NewService(gConfig)
 	if err != nil {
 		log.Fatalf("new service failed, err: %v", err)
 	}
-	return NewHandler(service), nil
+	return NewHandler(gService), nil
 }
 
 func tearDown() {
@@ -86,7 +84,7 @@ const (
 
 // ServiceRegisterConfig is service register info
 type ServiceRegisterConfig struct {
-	Idc  string `json:"idc"`
+	IDC  string `json:"idc"`
 	Host string `json:"host"`
 }
 
@@ -103,12 +101,10 @@ type Config struct {
 
 	ClusterMgr clustermgr.Config `json:"clustermgr"`
 	Worker     worker.Config     `json:"worker"`
-	BlobNode   blobnode.Config   `json:"blobnode"`
+	Blobnode   blobnode.Config   `json:"blobnode"`
 	Scheduler  scheduler.Config  `json:"scheduler"`
 
-	ListVolIntervalMs       int64 `json:"list_vol_interval_ms"`
-	ListVolCount            int   `json:"list_vol_count"`
-	VolCacheUpdateDurationS int   `json:"vol_cache_update_duration_s"`
+	VolCacheUpdateDurationS int `json:"vol_cache_update_duration_s"`
 }
 
 func (cfg *Config) checkAndFix() (err error) {
@@ -117,15 +113,15 @@ func (cfg *Config) checkAndFix() (err error) {
 	}
 
 	cfg.ShardRepair.ClusterID = cfg.ClusterID
-	cfg.ShardRepair.Idc = cfg.ServiceRegister.Idc
+	cfg.ShardRepair.IDC = cfg.ServiceRegister.IDC
 
 	cfg.BlobDelete.ClusterID = cfg.ClusterID
 
 	if cfg.ClusterMgr.Config.ClientTimeoutMs <= 0 {
 		cfg.ClusterMgr.Config.ClientTimeoutMs = defaultClientTimeoutMs
 	}
-	if cfg.BlobNode.ClientTimeoutMs <= 0 {
-		cfg.BlobNode.ClientTimeoutMs = defaultClientTimeoutMs
+	if cfg.Blobnode.ClientTimeoutMs <= 0 {
+		cfg.Blobnode.ClientTimeoutMs = defaultClientTimeoutMs
 	}
 	if cfg.Worker.ClientTimeoutMs <= 0 {
 		cfg.Worker.ClientTimeoutMs = defaultClientTimeoutMs
@@ -148,7 +144,6 @@ func (cfg *Config) checkAndFix() (err error) {
 
 	cfg.fixShardRepairConfig()
 	cfg.fixBlobDeleteConfig()
-
 	return
 }
 
@@ -201,7 +196,8 @@ func (cfg *Config) fixBlobDeleteConfig() {
 
 // Service rpc service
 type Service struct {
-	Config
+	config Config
+
 	clusterMgrClient client.ClusterMgrAPI
 
 	switchMgr      *taskswitch.SwitchMgr
@@ -224,10 +220,10 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("open database: cfg[%+v], err[%w]", cfg.Database, err)
 	}
 
-	cmCli := client.NewCmClient(&cfg.ClusterMgr)
+	cmCli := client.NewClusterMgrClient(&cfg.ClusterMgr)
 	schedulerCli := client.NewSchedulerClient(&cfg.Scheduler)
-	blobNodeCli := client.NewBlobNodeClient(&cfg.BlobNode)
-	workerCli := client.NewWorkerCli(&cfg.Worker)
+	blobnodeCli := client.NewBlobnodeClient(&cfg.Blobnode)
+	workerCli := client.NewWorkerClient(&cfg.Worker)
 
 	switchMgr := taskswitch.NewSwitchMgr(cmCli)
 	vc := NewVolCache(cmCli, cfg.VolCacheUpdateDurationS)
@@ -239,13 +235,13 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("new shard repair mgr: cfg[%+v], err[%w]", cfg.ShardRepair, err)
 	}
 
-	deleteMgr, err := NewDeleteMgr(&cfg.BlobDelete, vc, offAccessor, blobNodeCli, switchMgr)
+	deleteMgr, err := NewDeleteMgr(&cfg.BlobDelete, vc, offAccessor, blobnodeCli, switchMgr)
 	if err != nil {
 		return nil, fmt.Errorf("new blob delete mgr: cfg[%+v], err[%w]", cfg.BlobDelete, err)
 	}
 
 	service := &Service{
-		Config:           cfg,
+		config:           cfg,
 		clusterMgrClient: cmCli,
 		switchMgr:        switchMgr,
 		shardRepairMgr:   shardRepairMgr,
@@ -271,24 +267,17 @@ func NewService(cfg Config) (*Service, error) {
 
 // NewHandler returns app server handler
 func NewHandler(service *Service) *rpc.Router {
-	rpc.RegisterArgsParser(&api.VolInfo{}, "json")
-
 	// POST /update/vol
 	// request body: json
-	// response body: json
-	rpc.POST("/update/vol", service.HTTPUpdateVol, rpc.OptArgsBody())
-
+	rpc.POST(api.PathUpdateVolume, service.HTTPUpdateVolume, rpc.OptArgsBody())
 	// GET /stats
-	rpc.GET("/stats", service.HTTPStats)
-
+	rpc.GET(api.PathStats, service.HTTPStats)
 	return rpc.DefaultRouter
 }
 
-// HTTPUpdateVol updates volume
-func (s *Service) HTTPUpdateVol(c *rpc.Context) {
-	span := trace.SpanFromContextSafe(c.Request.Context())
-
-	args := new(api.VolInfo)
+// HTTPUpdateVolume updates volume cache
+func (s *Service) HTTPUpdateVolume(c *rpc.Context) {
+	args := new(api.UpdateVolumeArgs)
 	if err := c.ParseArgs(args); err != nil {
 		c.RespondError(err)
 		return
@@ -296,6 +285,7 @@ func (s *Service) HTTPUpdateVol(c *rpc.Context) {
 
 	_, err := s.volCache.Update(args.Vid)
 	if err != nil {
+		span := trace.SpanFromContextSafe(c.Request.Context())
 		span.Errorf("volume cache update failed: vid[%d], err[%+v]", args.Vid, err)
 		c.RespondError(err)
 		return
@@ -310,11 +300,9 @@ func (s *Service) HTTPStats(c *rpc.Context) {
 	deleteSuccessCounter, deleteFailedCounter := s.deleteMgr.GetTaskStats()
 	delErrStats, delTotalErrCnt := s.deleteMgr.GetErrorStats()
 
-	var switchStatus string
+	switchStatus := taskswitch.SwitchClose
 	if s.deleteMgr.Enabled() {
 		switchStatus = taskswitch.SwitchOpen
-	} else {
-		switchStatus = taskswitch.SwitchClose
 	}
 	deleteStat := api.Stat{
 		Switch:        switchStatus,
@@ -328,10 +316,9 @@ func (s *Service) HTTPStats(c *rpc.Context) {
 	repairSuccessCounter, repairFailedCounter := s.shardRepairMgr.GetTaskStats()
 	repairErrStats, repairTotalErrCnt := s.shardRepairMgr.GetErrorStats()
 
+	switchStatus = taskswitch.SwitchClose
 	if s.shardRepairMgr.Enabled() {
 		switchStatus = taskswitch.SwitchOpen
-	} else {
-		switchStatus = taskswitch.SwitchClose
 	}
 	repairStat := api.Stat{
 		Switch:        switchStatus,
@@ -345,7 +332,6 @@ func (s *Service) HTTPStats(c *rpc.Context) {
 		ShardRepair: repairStat,
 		BlobDelete:  deleteStat,
 	}
-
 	c.RespondJSON(taskStats)
 }
 
@@ -362,7 +348,8 @@ func (s *Service) RunTask() {
 // Register registers self service to scheduler
 func (s *Service) Register(cli client.IScheduler) (err error) {
 	if err := retry.Timed(3, 200).On(func() error {
-		return cli.Register(context.Background(), s.ClusterID, proto.ServiceNameTinker, s.ServiceRegister.Host, s.ServiceRegister.Idc)
+		return cli.Register(context.Background(), s.config.ClusterID, proto.ServiceNameTinker,
+			s.config.ServiceRegister.Host, s.config.ServiceRegister.IDC)
 	}); err != nil {
 		log.Errorf("register failed: err[%+v]", err)
 		return err
@@ -372,18 +359,18 @@ func (s *Service) Register(cli client.IScheduler) (err error) {
 
 // LoadVolInfo load volume info
 func (s *Service) LoadVolInfo() error {
-	return s.volCache.Load(time.Millisecond*time.Duration(s.ListVolIntervalMs), s.ListVolCount)
+	return s.volCache.Load()
 }
 
 func (s *Service) runKafkaMonitor(access base.IOffsetAccessor) error {
 	// collect cfg
 	var topicCfgs []*base.KafkaConfig
-	topicCfgs = append(topicCfgs, &s.BlobDelete.NormalTopic)
-	topicCfgs = append(topicCfgs, &s.BlobDelete.FailTopic)
-	for _, topicCfg := range s.ShardRepair.PriorityTopics {
+	topicCfgs = append(topicCfgs, &s.config.BlobDelete.NormalTopic)
+	topicCfgs = append(topicCfgs, &s.config.BlobDelete.FailTopic)
+	for _, topicCfg := range s.config.ShardRepair.PriorityTopics {
 		topicCfgs = append(topicCfgs, &topicCfg.KafkaConfig)
 	}
-	topicCfgs = append(topicCfgs, &s.ShardRepair.FailTopic)
+	topicCfgs = append(topicCfgs, &s.config.ShardRepair.FailTopic)
 
 	// start topic monitor
 	monitorIntervalS := 1

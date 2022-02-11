@@ -18,21 +18,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cubefs/blobstore/common/proto"
+	"github.com/cubefs/blobstore/testing/mocks"
 )
 
-type mockTinker struct{}
-
-func (tinker *mockTinker) UpdateVolInfo(ctx context.Context, host string, vid proto.Vid) error {
-	return nil
-}
-
-func TestTinker(t *testing.T) {
-	tinker := TinkerClient{
-		tinkerCli: &mockTinker{},
-	}
+func TestScheduler_ClientTinker(t *testing.T) {
+	cli := mocks.NewMockITinker(gomock.NewController(t))
+	cli.EXPECT().UpdateVolume(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	tinker := TinkerClient{tinkerCli: cli}
 	err := tinker.UpdateVol(context.Background(), "", 0, 1)
 	require.NoError(t, err)
 }

@@ -26,20 +26,18 @@ type IWorker interface {
 	RepairShard(ctx context.Context, host string, task proto.ShardRepairTask) error
 }
 
-// WorkerCli worker client
-type WorkerCli struct {
+// workerClient worker client
+type workerClient struct {
 	client worker.IWorker
 }
 
-// NewWorkerCli returns worker client
-func NewWorkerCli(config *worker.Config) IWorker {
-	return &WorkerCli{
-		client: worker.New(config),
-	}
+// NewWorkerClient returns worker client
+func NewWorkerClient(config *worker.Config) IWorker {
+	return &workerClient{client: worker.New(config)}
 }
 
 // RepairShard send repair shard message to worker
-func (c *WorkerCli) RepairShard(ctx context.Context, host string, task proto.ShardRepairTask) error {
+func (c *workerClient) RepairShard(ctx context.Context, host string, task proto.ShardRepairTask) error {
 	return c.client.RepairShard(ctx, host, &worker.ShardRepairArgs{
 		Task: task,
 	})

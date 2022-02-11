@@ -15,8 +15,6 @@
 package base
 
 import (
-	"time"
-
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/tinker/client"
 )
@@ -25,5 +23,5 @@ import (
 type IVolumeCache interface {
 	Update(vid proto.Vid) (*client.VolInfo, error)
 	Get(vid proto.Vid) (*client.VolInfo, error)
-	Load(interval time.Duration, step int) error
+	Load() error
 }

@@ -21,24 +21,23 @@ import (
 	"github.com/cubefs/blobstore/common/proto"
 )
 
-// BlobNodeAPI define the interface of blobnode use by delete
-type BlobNodeAPI interface {
+// BlobnodeAPI interface of blobnode client deleter api
+type BlobnodeAPI interface {
 	MarkDelete(ctx context.Context, location proto.VunitLocation, bid proto.BlobID) error
 	Delete(ctx context.Context, location proto.VunitLocation, bid proto.BlobID) error
 }
 
-// BlobNodeClient blobnode client
-type BlobNodeClient struct {
+type blobnodeClient struct {
 	client blobnode.StorageAPI
 }
 
-// NewBlobNodeClient returns blobnode client
-func NewBlobNodeClient(cfg *blobnode.Config) BlobNodeAPI {
-	return &BlobNodeClient{blobnode.New(cfg)}
+// NewBlobnodeClient returns blobnode client
+func NewBlobnodeClient(cfg *blobnode.Config) BlobnodeAPI {
+	return &blobnodeClient{blobnode.New(cfg)}
 }
 
 // MarkDelete mark delete blob
-func (c *BlobNodeClient) MarkDelete(ctx context.Context, location proto.VunitLocation, bid proto.BlobID) error {
+func (c *blobnodeClient) MarkDelete(ctx context.Context, location proto.VunitLocation, bid proto.BlobID) error {
 	return c.client.MarkDeleteShard(ctx, location.Host, &blobnode.DeleteShardArgs{
 		DiskID: location.DiskID,
 		Vuid:   location.Vuid,
@@ -47,7 +46,7 @@ func (c *BlobNodeClient) MarkDelete(ctx context.Context, location proto.VunitLoc
 }
 
 // Delete delete blob
-func (c *BlobNodeClient) Delete(ctx context.Context, location proto.VunitLocation, bid proto.BlobID) error {
+func (c *blobnodeClient) Delete(ctx context.Context, location proto.VunitLocation, bid proto.BlobID) error {
 	return c.client.DeleteShard(ctx, location.Host, &blobnode.DeleteShardArgs{
 		DiskID: location.DiskID,
 		Vuid:   location.Vuid,

@@ -16,43 +16,47 @@ package tinker
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 )
 
-type VolInfo struct {
+// defined http server path.
+const (
+	PathUpdateVolume = "/update/vol"
+	PathStats        = "/stats"
+)
+
+// UpdateVolumeArgs argument of volume to update.
+type UpdateVolumeArgs struct {
 	Vid proto.Vid `json:"vid"`
 }
 
+// Config tinker client configuration.
 type Config struct {
 	rpc.Config
 }
 
-type VolInfoUpdater interface {
-	UpdateVolInfo(ctx context.Context, host string, vid proto.Vid) error
+// ITinker api of tinker service.
+type ITinker interface {
+	UpdateVolume(ctx context.Context, host string, vid proto.Vid) error
+	Stats(ctx context.Context, host string) (Stats, error)
 }
 
-type Client struct {
+type client struct {
 	rpc.Client
 }
 
-func New(cfg *Config) *Client {
-	return &Client{rpc.NewClient(&cfg.Config)}
+// New returns client of tinker.
+func New(cfg *Config) ITinker {
+	return &client{rpc.NewClient(&cfg.Config)}
 }
 
-func (c *Client) UpdateVolInfo(ctx context.Context, host string, vid proto.Vid) error {
-	urlStr := fmt.Sprintf("%v/update/vol", host)
-	err := c.PostWith(ctx, urlStr, nil, VolInfo{Vid: vid})
-
-	return err
+func (c *client) UpdateVolume(ctx context.Context, host string, vid proto.Vid) error {
+	return c.PostWith(ctx, host+PathUpdateVolume, nil, UpdateVolumeArgs{Vid: vid})
 }
 
-type StatGetter interface {
-	Stats(ctx context.Context, host string) (ret Stats, err error)
-}
-
+// Stat stat
 type Stat struct {
 	Switch        string   `json:"switch"`
 	SuccessPerMin string   `json:"success_per_min"`
@@ -61,12 +65,13 @@ type Stat struct {
 	ErrStats      []string `json:"err_stats"`
 }
 
+// Stats all stat
 type Stats struct {
 	ShardRepair Stat `json:"shard_repair"`
 	BlobDelete  Stat `json:"blob_delete"`
 }
 
-func (c *Client) Stats(ctx context.Context, host string) (ret Stats, err error) {
-	err = c.GetWith(ctx, host+"/stats", &ret)
+func (c *client) Stats(ctx context.Context, host string) (stats Stats, err error) {
+	err = c.GetWith(ctx, host+PathStats, &stats)
 	return
 }

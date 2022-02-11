@@ -29,7 +29,7 @@ package testing
 //go:generate mockgen -destination=./mocks/api_blobnode.go -package=mocks -mock_names StorageAPI=MockStorageAPI github.com/cubefs/blobstore/api/blobnode StorageAPI
 //go:generate mockgen -destination=./mocks/api_mqproxy.go -package=mocks -mock_names MsgSender=MockMsgSender,LbMsgSender=MockLbRpcClient github.com/cubefs/blobstore/api/mqproxy MsgSender,LbMsgSender
 //go:generate mockgen -destination=./mocks/api_scheduler.go -package=mocks -mock_names IScheduler=MockIScheduler github.com/cubefs/blobstore/api/scheduler IScheduler
-//go:generate mockgen -destination=./mocks/api_tinker.go -package=mocks -mock_names VolInfoUpdater=MockVolInfoUpdater github.com/cubefs/blobstore/api/tinker VolInfoUpdater
+//go:generate mockgen -destination=./mocks/api_tinker.go -package=mocks -mock_names ITinker=MockITinker github.com/cubefs/blobstore/api/tinker ITinker
 //go:generate mockgen -destination=./mocks/api_worker.go -package=mocks -mock_names IWorker=MockIWorker github.com/cubefs/blobstore/api/worker IWorker
 
 import (

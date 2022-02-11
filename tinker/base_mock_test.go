@@ -7,7 +7,6 @@ package tinker
 import (
 	context "context"
 	reflect "reflect"
-	time "time"
 
 	sarama "github.com/Shopify/sarama"
 	proto "github.com/cubefs/blobstore/common/proto"
@@ -156,17 +155,17 @@ func (mr *MockVolumeCacheMockRecorder) Get(arg0 interface{}) *gomock.Call {
 }
 
 // Load mocks base method.
-func (m *MockVolumeCache) Load(arg0 time.Duration, arg1 int) error {
+func (m *MockVolumeCache) Load() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Load", arg0, arg1)
+	ret := m.ctrl.Call(m, "Load")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Load indicates an expected call of Load.
-func (mr *MockVolumeCacheMockRecorder) Load(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockVolumeCacheMockRecorder) Load() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockVolumeCache)(nil).Load), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockVolumeCache)(nil).Load))
 }
 
 // Update mocks base method.

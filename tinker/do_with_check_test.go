@@ -21,7 +21,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/tinker/client"
 )
@@ -47,13 +47,13 @@ func TestDoWithCheckVolConsistencyErr(t *testing.T) {
 	{
 		volCache.EXPECT().Get(gomock.Any()).DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return nil, errors.ErrVolumeNotExist
+				return nil, errcode.ErrVolumeNotExist
 			},
 		)
 		err := DoWithCheckVolConsistency(context.Background(), volCache, 12, func(volInfo *client.VolInfo) error {
 			return errMock
 		})
-		require.Equal(t, err, errors.ErrVolumeNotExist)
+		require.ErrorIs(t, errcode.ErrVolumeNotExist, err)
 	}
 	{
 		volCache.EXPECT().Get(gomock.Any()).DoAndReturn(
@@ -65,13 +65,13 @@ func TestDoWithCheckVolConsistencyErr(t *testing.T) {
 		)
 		volCache.EXPECT().Get(gomock.Any()).DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return nil, errors.ErrVolumeNotExist
+				return nil, errcode.ErrVolumeNotExist
 			},
 		)
 		err := DoWithCheckVolConsistency(context.Background(), volCache, 1, func(volInfo *client.VolInfo) error {
 			return nil
 		})
-		require.Equal(t, err, errors.ErrVolumeNotExist)
+		require.Equal(t, err, errcode.ErrVolumeNotExist)
 	}
 	{
 		volCache.EXPECT().Get(gomock.Any()).DoAndReturn(

@@ -25,7 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/cubefs/blobstore/common/counter"
-	comerrors "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/recordlog"
@@ -113,7 +113,6 @@ func (dsm *deleteStageMgr) stageEqual(bid proto.BlobID, vuid proto.Vuid, target 
 	return false
 }
 
-////////////////////////
 type delShardRet struct {
 	err  error
 	vuid proto.Vuid
@@ -186,7 +185,7 @@ func NewDeleteMgr(
 	cfg *BlobDeleteConfig,
 	volCache base.IVolumeCache,
 	offAccessor base.IOffsetAccessor,
-	blobNodeCli client.BlobNodeAPI,
+	blobnodeCli client.BlobnodeAPI,
 	switchMgr *taskswitch.SwitchMgr,
 ) (*DeleteMgr, error) {
 	var safeDelayTime time.Duration
@@ -248,7 +247,7 @@ func NewDeleteMgr(
 		consumeIntervalMs: time.Duration(0),
 		safeDelayTime:     safeDelayTime,
 		volCache:          volCache,
-		blobNodeCli:       blobNodeCli,
+		blobnodeCli:       blobnodeCli,
 		failMsgSender:     failMsgSender,
 
 		delSuccessCounter:      mgr.delSuccessCounter,
@@ -269,7 +268,7 @@ func NewDeleteMgr(
 		consumeIntervalMs: time.Millisecond * time.Duration(cfg.FailMsgConsumeIntervalMs),
 		safeDelayTime:     safeDelayTime,
 		volCache:          volCache,
-		blobNodeCli:       blobNodeCli,
+		blobnodeCli:       blobnodeCli,
 		failMsgSender:     failMsgSender,
 
 		delSuccessCounter:      mgr.delSuccessCounter,
@@ -320,7 +319,7 @@ type deleteTopicConsumer struct {
 	safeDelayTime     time.Duration
 
 	volCache    base.IVolumeCache
-	blobNodeCli client.BlobNodeAPI
+	blobnodeCli client.BlobnodeAPI
 
 	failMsgSender base.IProducer
 	dsm           deleteStageMgr
@@ -604,10 +603,10 @@ func (d *deleteTopicConsumer) deleteShard(ctx context.Context, location proto.Vu
 	var stage proto.DeleteStage
 	if markDelete {
 		stage = proto.MarkDelStage
-		err = d.blobNodeCli.MarkDelete(ctx, location, bid)
+		err = d.blobnodeCli.MarkDelete(ctx, location, bid)
 	} else {
 		stage = proto.DelStage
-		err = d.blobNodeCli.Delete(ctx, location, bid)
+		err = d.blobnodeCli.Delete(ctx, location, bid)
 	}
 
 	defer func() {
@@ -670,14 +669,14 @@ func (d *deleteTopicConsumer) send2FailQueue(ctx context.Context, msg proto.Dele
 
 // for error code judgment
 func shouldUpdateVolumeErr(errCode int) bool {
-	return errCode == comerrors.CodeDiskBroken ||
-		errCode == comerrors.CodeVuidNotFound ||
-		errCode == comerrors.CodeDiskNotFound
+	return errCode == errcode.CodeDiskBroken ||
+		errCode == errcode.CodeVuidNotFound ||
+		errCode == errcode.CodeDiskNotFound
 }
 
 func assumeDeleteSuccess(errCode int) bool {
-	return errCode == comerrors.CodeBidNotFound ||
-		errCode == comerrors.CodeShardMarkDeleted
+	return errCode == errcode.CodeBidNotFound ||
+		errCode == errcode.CodeShardMarkDeleted
 }
 
 func unmarshalMsgs(msgs []*sarama.ConsumerMessage) (delMsgs []*proto.DeleteMsg) {

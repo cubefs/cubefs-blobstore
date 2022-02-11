@@ -26,7 +26,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/cubefs/blobstore/common/counter"
-	comErr "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
@@ -60,7 +60,7 @@ var ErrWorkerServiceUnavailable = errors.New("worker service unavailable")
 // ShardRepairConfig shard repair config
 type ShardRepairConfig struct {
 	ClusterID proto.ClusterID
-	Idc       string
+	IDC       string
 
 	TaskPoolSize int      `json:"task_pool_size"`
 	BrokerList   []string `json:"broker_list"`
@@ -129,7 +129,7 @@ func NewShardRepairMgr(
 	}
 
 	workerSelector, err := selector.NewSelector(10*1000, func() (hosts []string, err error) {
-		hosts, err = schedulerCli.ListService(context.Background(), cfg.ClusterID, cfg.Idc)
+		hosts, err = schedulerCli.ListService(context.Background(), cfg.ClusterID, cfg.IDC)
 		if err != nil {
 			return
 		}
@@ -353,7 +353,7 @@ func (s *ShardRepairMgr) tryRepair(
 }
 
 func (s *ShardRepairMgr) shouldUpdateVol(err error) bool {
-	if errCode := rpc.DetectStatusCode(err); errCode == comErr.CodeDestReplicaBad {
+	if errCode := rpc.DetectStatusCode(err); errCode == errcode.CodeDestReplicaBad {
 		return true
 	}
 	return false
@@ -424,7 +424,7 @@ func (s *ShardRepairMgr) send2FailQueue(ctx context.Context, msg proto.ShardRepa
 }
 
 func isOrphanShard(err error) bool {
-	return rpc.DetectStatusCode(err) == comErr.CodeOrphanShard
+	return rpc.DetectStatusCode(err) == errcode.CodeOrphanShard
 }
 
 // GetTaskStats returns task stats

@@ -29,7 +29,7 @@ type ITinker interface {
 
 // TinkerClient tinker client
 type TinkerClient struct {
-	tinkerCli api.VolInfoUpdater
+	tinkerCli api.ITinker
 }
 
 // NewTinkerClient returns tinker client
@@ -43,6 +43,6 @@ func NewTinkerClient(conf *api.Config) ITinker {
 func (c TinkerClient) UpdateVol(ctx context.Context, host string, vid proto.Vid, clusterID proto.ClusterID) (err error) {
 	pSpan := trace.SpanFromContextSafe(ctx)
 	_, ctx = trace.StartSpanFromContextWithTraceID(context.Background(), "UpdateVol", pSpan.TraceID())
-	err = c.tinkerCli.UpdateVolInfo(ctx, host, vid)
+	err = c.tinkerCli.UpdateVolume(ctx, host, vid)
 	return
 }

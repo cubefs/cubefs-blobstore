@@ -23,32 +23,25 @@ import (
 
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/tinker/client"
-	"github.com/cubefs/blobstore/util/errors"
 )
 
 func TestVolCache(t *testing.T) {
 	ctr := gomock.NewController(t)
 	cmClient := NewMockClusterMgrAPI(ctr)
-	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, afterVid proto.Vid, count int) ([]*client.VolInfo, proto.Vid, error) {
-			return []*client.VolInfo{{Vid: 3}}, 1, nil
-		},
-	)
-	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, afterVid proto.Vid, count int) ([]*client.VolInfo, proto.Vid, error) {
-			return []*client.VolInfo{{Vid: 4}}, 0, nil
-		},
-	)
+	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
+		func(_ context.Context, marker proto.Vid, _ int) ([]client.VolInfo, proto.Vid, error) {
+			if marker == defaultMarker {
+				return []client.VolInfo{{Vid: 4}}, proto.Vid(10), nil
+			}
+			return []client.VolInfo{{Vid: 9}}, defaultMarker, nil
+		})
 	cmClient.EXPECT().GetVolInfo(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, vid proto.Vid) (*client.VolInfo, error) {
-			return &client.VolInfo{
-				Vid: proto.Vid(1),
-			}, nil
-		},
-	)
+		func(_ context.Context, vid proto.Vid) (client.VolInfo, error) {
+			return client.VolInfo{Vid: vid}, nil
+		})
 
 	volCache := NewVolCache(cmClient, -1)
-	err := volCache.Load(0, 0)
+	err := volCache.Load()
 	require.NoError(t, err)
 
 	// no cache will update
@@ -59,27 +52,21 @@ func TestVolCache(t *testing.T) {
 	_, err = volCache.Get(1)
 	require.NoError(t, err)
 
-	////ErrUpdateNotLongAgo
-	//_, err = volCache.Get(1)
-	//require.Equal(t, true, errors.Is(err, ErrUpdateNotLongAgo))
+	// // ErrUpdateNotLongAgo
+	// _, err = volCache.Get(1)
+	// require.ErrorIs(t, ErrUpdateNotLongAgo, err)
 
 	// update failed
-	cmClient.EXPECT().GetVolInfo(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, vid proto.Vid) (*client.VolInfo, error) {
-			return nil, errMock
-		},
-	)
+	cmClient.EXPECT().GetVolInfo(gomock.Any(), gomock.Any()).Return(
+		client.VolInfo{}, errMock)
 	volCache = NewVolCache(cmClient, -1)
 	_, err = volCache.Get(1)
-	require.Equal(t, true, errors.Is(err, errMock))
+	require.ErrorIs(t, errMock, err)
 
 	// list volume failed
-	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, afterVid proto.Vid, count int) ([]*client.VolInfo, proto.Vid, error) {
-			return nil, 0, errMock
-		},
-	)
+	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(
+		nil, proto.Vid(0), errMock)
 	volCache = NewVolCache(cmClient, 60)
-	err = volCache.Load(0, 0)
-	require.Equal(t, true, errors.Is(err, errMock))
+	err = volCache.Load()
+	require.ErrorIs(t, errMock, err)
 }

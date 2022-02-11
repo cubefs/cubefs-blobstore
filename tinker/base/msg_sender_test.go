@@ -31,16 +31,16 @@ func TestMsgSenderEx_SendMessage(t *testing.T) {
 
 	metadataResponse := new(sarama.MetadataResponse)
 	metadataResponse.AddBroker(leader.Addr(), leader.BrokerID())
-	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, nil, 0)
+	metadataResponse.AddTopicPartition(testTopic, 0, leader.BrokerID(), nil, nil, nil, 0)
 	seedBroker.Returns(metadataResponse)
 
 	prodSuccess := new(sarama.ProduceResponse)
-	prodSuccess.AddTopicPartition("my_topic", 0, 0)
+	prodSuccess.AddTopicPartition(testTopic, 0, 0)
 	for i := 0; i < 10; i++ {
 		leader.Returns(prodSuccess)
 	}
 
-	msgSender, err := NewMsgSenderEx("my_topic", &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
+	msgSender, err := NewMsgSenderEx(testTopic, &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
 	require.NoError(t, err)
 
 	err = msgSender.SendMessage([]byte("dasdada"))
@@ -55,16 +55,16 @@ func TestMsgSenderEx_SendMessages(t *testing.T) {
 
 	metadataResponse := new(sarama.MetadataResponse)
 	metadataResponse.AddBroker(leader.Addr(), leader.BrokerID())
-	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, nil, 0)
+	metadataResponse.AddTopicPartition(testTopic, 0, leader.BrokerID(), nil, nil, nil, 0)
 	seedBroker.Returns(metadataResponse)
 
 	prodSuccess := new(sarama.ProduceResponse)
-	prodSuccess.AddTopicPartition("my_topic", 0, 0)
+	prodSuccess.AddTopicPartition(testTopic, 0, 0)
 	for i := 0; i < 10; i++ {
 		leader.Returns(prodSuccess)
 	}
 
-	msgSender, err := NewMsgSenderEx("my_topic", &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
+	msgSender, err := NewMsgSenderEx(testTopic, &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
 	require.NoError(t, err)
 
 	err = msgSender.SendMessages([][]byte{[]byte("dasdada")})

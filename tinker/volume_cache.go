@@ -28,13 +28,12 @@ import (
 	"github.com/cubefs/blobstore/tinker/client"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/util/log"
+	"github.com/cubefs/blobstore/util/retry"
 )
 
-// default volume cache args
 const (
-	DefaultListIntervalMs = 1000
-	DefaultStartVid       = proto.Vid(0)
-	DefaultListCount      = 1000
+	defaultMarker = proto.Vid(0)
+	defaultCount  = 1000
 )
 
 // ErrUpdateNotLongAgo update not long ago
@@ -73,47 +72,49 @@ func (s *updateStatus) canUpdate(vid proto.Vid) bool {
 
 // VolCache volume cache
 type VolCache struct {
-	clusterClient client.ClusterMgrAPI
-	m             cmap.ConcurrentMap
-	group         singleflight.Group
-	updateStatus  *updateStatus
+	cmClient     client.ClusterMgrAPI
+	m            cmap.ConcurrentMap
+	group        singleflight.Group
+	updateStatus *updateStatus
 }
 
 // NewVolCache returns volume cache manager
 func NewVolCache(client client.ClusterMgrAPI, updateDurationS int) *VolCache {
 	return &VolCache{
-		m:             cmap.New(),
-		clusterClient: client,
-		updateStatus:  newUpdateStatus(updateDurationS),
+		m:            cmap.New(),
+		cmClient:     client,
+		updateStatus: newUpdateStatus(updateDurationS),
 	}
 }
 
 // Load list all volume info
-func (c *VolCache) Load(interval time.Duration, step int) error {
-	if interval <= 0 {
-		interval = DefaultListIntervalMs
-	}
-	if step <= 0 {
-		step = DefaultListCount
-	}
-	afterVid := DefaultStartVid
-
+func (c *VolCache) Load() error {
+	marker := defaultMarker
 	for {
-		log.Infof("load volume: afterVid[%d], step[%d]", afterVid, step)
-		volInfos, nextVid, err := c.clusterClient.ListVolume(context.Background(), afterVid, step)
-		if err != nil {
-			log.Errorf("list volume failed: afterVid[%d], count[%+v], code[%d], err[%+v]", afterVid, step, rpc.DetectStatusCode(err), err)
+		log.Infof("to load volume marker[%d], count[%d]", marker, defaultCount)
+
+		var (
+			volInfos   []client.VolInfo
+			nextMarker proto.Vid
+			err        error
+		)
+		if err = retry.Timed(3, 200).On(func() error {
+			volInfos, nextMarker, err = c.cmClient.ListVolume(context.Background(), marker, defaultCount)
+			return err
+		}); err != nil {
+			log.Errorf("list volume: marker[%d], count[%+v], code[%d], error[%v]",
+				marker, defaultCount, rpc.DetectStatusCode(err), err)
 			return err
 		}
+
 		for _, v := range volInfos {
-			c.m.Set(v.Vid.ToString(), *v)
+			c.m.Set(v.Vid.ToString(), v)
 		}
-		if len(volInfos) == 0 || nextVid == DefaultStartVid {
+		if len(volInfos) == 0 || nextMarker == defaultMarker {
 			break
 		}
 
-		afterVid = nextVid
-		time.Sleep(interval)
+		marker = nextMarker
 	}
 	return nil
 }
@@ -138,13 +139,13 @@ func (c *VolCache) Update(vid proto.Vid) (*client.VolInfo, error) {
 		return nil, ErrUpdateNotLongAgo
 	}
 
-	ret, err, _ := c.group.Do(fmt.Sprintf("%d", vid), func() (interface{}, error) {
-		volInfo, err := c.clusterClient.GetVolInfo(context.Background(), vid)
+	ret, err, _ := c.group.Do(fmt.Sprintf("volume-update-%d", vid), func() (interface{}, error) {
+		volInfo, err := c.cmClient.GetVolInfo(context.Background(), vid)
 		if err != nil {
 			return nil, err
 		}
-		c.m.Set(vid.ToString(), *volInfo)
-		return volInfo, nil
+		c.m.Set(vid.ToString(), volInfo)
+		return &volInfo, nil
 	})
 
 	if err != nil {

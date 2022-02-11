@@ -18,33 +18,24 @@ import (
 	"context"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	cmapi "github.com/cubefs/blobstore/api/clustermgr"
 	"github.com/cubefs/blobstore/api/mqproxy"
+	"github.com/cubefs/blobstore/testing/mocks"
 )
 
-type mockMqproxy struct{}
-
-func (proxy *mockMqproxy) SendDeleteMsg(ctx context.Context, info *mqproxy.DeleteArgs) error {
-	return nil
-}
-
-func (proxy *mockMqproxy) SendShardRepairMsg(ctx context.Context, info *mqproxy.ShardRepairArgs) error {
-	return nil
-}
-
-func TestMqCli(t *testing.T) {
+func TestScheduler_ClientMQProxy(t *testing.T) {
+	mqcli := mocks.NewMockLbRpcClient(gomock.NewController(t))
+	mqcli.EXPECT().SendShardRepairMsg(gomock.Any(), gomock.Any()).Return(nil)
 	cli := &mqProxyClient{
-		cli:       &mockMqproxy{},
+		cli:       mqcli,
 		clusterID: 1,
 	}
 	err := cli.SendShardRepairMsg(context.Background(), 0, 0, []uint8{0})
 	require.NoError(t, err)
 
-	defer func() {
-		recover()
-	}()
 	_, err = NewMqProxyClient(&mqproxy.LbConfig{}, &cmapi.Config{}, 1)
 	require.Error(t, err)
 }

@@ -23,14 +23,13 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	comErr "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/taskswitch"
 	"github.com/cubefs/blobstore/testing/mocks"
 	"github.com/cubefs/blobstore/tinker/base"
 	"github.com/cubefs/blobstore/tinker/client"
-	"github.com/cubefs/blobstore/tinker/db"
 	"github.com/cubefs/blobstore/util/taskpool"
 )
 
@@ -38,47 +37,23 @@ func newShardRepairMgr(t *testing.T) *ShardRepairMgr {
 	ctr := gomock.NewController(t)
 
 	volCache := NewMockVolumeCache(ctr)
-	volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
-		func(vid proto.Vid) (*client.VolInfo, error) {
-			return &client.VolInfo{}, nil
-		},
-	)
-	volCache.EXPECT().Update(gomock.Any()).AnyTimes().DoAndReturn(
-		func(vid proto.Vid) (*client.VolInfo, error) {
-			return &client.VolInfo{}, nil
-		},
-	)
+	volCache.EXPECT().Get(gomock.Any()).AnyTimes().Return(&client.VolInfo{}, nil)
+	volCache.EXPECT().Update(gomock.Any()).AnyTimes().Return(&client.VolInfo{}, nil)
 
 	selector := mocks.NewMockSelector(ctr)
-	selector.EXPECT().GetRandomN(gomock.Any()).AnyTimes().DoAndReturn(
-		func(n int) []string {
-			return []string{"http://127.0.0.1:9600"}
-		},
-	)
+	selector.EXPECT().GetRandomN(gomock.Any()).AnyTimes().Return([]string{"http://127.0.0.1:9600"})
 
 	worker := NewMockWorkerCli(ctr)
-	worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, host string, task proto.ShardRepairTask) error {
-			return nil
-		},
-	)
+	worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	sender := NewMockProducer(ctr)
 	sender.EXPECT().SendMessage(gomock.Any()).AnyTimes().Return(nil)
 
 	orphanedShardTable := NewMockOrphanedShardTbl(ctr)
-	orphanedShardTable.EXPECT().SaveOrphanedShard(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, info db.ShardInfo) error {
-			return nil
-		},
-	)
+	orphanedShardTable.EXPECT().SaveOrphanedShard(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	cmClient := NewMockClusterMgrAPI(ctr)
-	cmClient.EXPECT().GetConfig(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, key string) (ret string, err error) {
-			return "", nil
-		},
-	)
+	cmClient.EXPECT().GetConfig(gomock.Any(), gomock.Any()).AnyTimes().Return("", nil)
 	switchMgr := taskswitch.NewSwitchMgr(cmClient)
 	taskSwitch, _ := switchMgr.AddSwitch(taskswitch.BlobDeleteSwitchName)
 
@@ -103,11 +78,7 @@ func TestConsumerShardRepairMsg(t *testing.T) {
 	ctr := gomock.NewController(t)
 	service := newShardRepairMgr(t)
 	consumer := NewMockConsumer(ctr)
-	consumer.EXPECT().CommitOffset(gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context) error {
-			return nil
-		},
-	)
+	consumer.EXPECT().CommitOffset(gomock.Any()).AnyTimes().Return(nil)
 	{
 		// no messages
 		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -159,11 +130,7 @@ func TestConsumerShardRepairMsg(t *testing.T) {
 		)
 		oldWorker := service.workerCli
 		worker := NewMockWorkerCli(ctr)
-		worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-			func(ctx context.Context, host string, task proto.ShardRepairTask) error {
-				return errMock
-			},
-		)
+		worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errMock)
 		service.workerCli = worker
 		service.consumerAndRepair(consumer, 2)
 		service.workerCli = oldWorker
@@ -182,11 +149,7 @@ func TestConsumerShardRepairMsg(t *testing.T) {
 		)
 		oldWorker := service.workerCli
 		worker := NewMockWorkerCli(ctr)
-		worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-			func(ctx context.Context, host string, task proto.ShardRepairTask) error {
-				return comErr.ErrDestReplicaBad
-			},
-		)
+		worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errcode.ErrDestReplicaBad)
 		service.workerCli = worker
 		service.consumerAndRepair(consumer, 2)
 		service.workerCli = oldWorker
@@ -206,11 +169,7 @@ func TestConsumerShardRepairMsg(t *testing.T) {
 		)
 		oldWorker := service.workerCli
 		worker := NewMockWorkerCli(ctr)
-		worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-			func(ctx context.Context, host string, task proto.ShardRepairTask) error {
-				return comErr.ErrOrphanShard
-			},
-		)
+		worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errcode.ErrOrphanShard)
 		service.workerCli = worker
 		service.consumerAndRepair(consumer, 2)
 		service.workerCli = oldWorker
@@ -233,7 +192,7 @@ func TestNewShardRepairMgr(t *testing.T) {
 	defer broker0.Close()
 
 	consumerCfg := base.KafkaConfig{
-		Topic:      "my_topic",
+		Topic:      testTopic,
 		BrokerList: []string{broker0.Addr()},
 		Partitions: []int32{0},
 	}
@@ -250,31 +209,15 @@ func TestNewShardRepairMgr(t *testing.T) {
 	}
 
 	volCache := NewMockVolumeCache(ctr)
-	volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
-		func(vid proto.Vid) (*client.VolInfo, error) {
-			return &client.VolInfo{}, nil
-		},
-	)
-	volCache.EXPECT().Update(gomock.Any()).AnyTimes().DoAndReturn(
-		func(vid proto.Vid) (*client.VolInfo, error) {
-			return &client.VolInfo{}, nil
-		},
-	)
+	volCache.EXPECT().Get(gomock.Any()).AnyTimes().Return(&client.VolInfo{}, nil)
+	volCache.EXPECT().Update(gomock.Any()).AnyTimes().Return(&client.VolInfo{}, nil)
 
 	cmClient := NewMockClusterMgrAPI(ctr)
 	switchMgr := taskswitch.NewSwitchMgr(cmClient)
 
 	accessor := NewMockOffsetAccessor(ctr)
-	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(topic string, partition int32) (int64, error) {
-			return 0, nil
-		},
-	)
-	accessor.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(topic string, partition int32, off int64) error {
-			return nil
-		},
-	)
+	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(0), nil)
+	accessor.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	scheduler := NewMockScheduler(ctr)
 	scheduler.EXPECT().ListService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
@@ -284,18 +227,11 @@ func TestNewShardRepairMgr(t *testing.T) {
 	)
 
 	orphanedShardTable := NewMockOrphanedShardTbl(ctr)
-	orphanedShardTable.EXPECT().SaveOrphanedShard(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, info db.ShardInfo) error {
-			return nil
-		},
-	)
+	orphanedShardTable.EXPECT().SaveOrphanedShard(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	worker := NewMockWorkerCli(ctr)
-	worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, host string, task proto.ShardRepairTask) error {
-			return nil
-		},
-	)
+	worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
 	_, err := NewShardRepairMgr(cfg, volCache, switchMgr, accessor, scheduler, orphanedShardTable, worker)
 	require.NoError(t, err)
 

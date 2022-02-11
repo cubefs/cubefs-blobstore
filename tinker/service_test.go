@@ -19,7 +19,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -58,11 +57,7 @@ func newMockService(t *testing.T) *Service {
 			return nil, nil
 		},
 	)
-	volCache.EXPECT().Load(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(interval time.Duration, step int) error {
-			return nil
-		},
-	)
+	volCache.EXPECT().Load().AnyTimes().Return(nil)
 
 	deleteMgr := NewMockBaseMgr(ctr)
 	deleteMgr.EXPECT().GetTaskStats().AnyTimes().DoAndReturn(
@@ -76,11 +71,7 @@ func newMockService(t *testing.T) *Service {
 		},
 	)
 	deleteMgr.EXPECT().RunTask().AnyTimes().Return()
-	deleteMgr.EXPECT().Enabled().AnyTimes().DoAndReturn(
-		func() bool {
-			return true
-		},
-	)
+	deleteMgr.EXPECT().Enabled().AnyTimes().Return(true)
 
 	shardRepairMgr := NewMockBaseMgr(ctr)
 	shardRepairMgr.EXPECT().GetTaskStats().AnyTimes().DoAndReturn(
@@ -94,11 +85,7 @@ func newMockService(t *testing.T) *Service {
 		},
 	)
 	shardRepairMgr.EXPECT().RunTask().AnyTimes().Return()
-	shardRepairMgr.EXPECT().Enabled().AnyTimes().DoAndReturn(
-		func() bool {
-			return true
-		},
-	)
+	shardRepairMgr.EXPECT().Enabled().AnyTimes().Return(true)
 
 	return &Service{
 		clusterMgrClient: cmClient,
@@ -126,7 +113,7 @@ func TestService(t *testing.T) {
 		},
 	}
 	for _, tc := range updateVolCases {
-		err := tinkerCli.UpdateVolInfo(ctx, tinkerServer.URL, tc.vid)
+		err := tinkerCli.UpdateVolume(ctx, tinkerServer.URL, tc.vid)
 		require.Equal(t, tc.code, rpc.DetectStatusCode(err))
 	}
 
@@ -142,11 +129,7 @@ func TestRunTask(t *testing.T) {
 
 	require.Panics(t, func() {
 		volCache := NewMockVolumeCache(gomock.NewController(t))
-		volCache.EXPECT().Load(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-			func(interval time.Duration, step int) error {
-				return errMock
-			},
-		)
+		volCache.EXPECT().Load().AnyTimes().Return(errMock)
 		service.volCache = volCache
 		service.RunTask()
 	})
@@ -178,10 +161,7 @@ func TestRunKafkaMonitor(t *testing.T) {
 	service := newMockService(t)
 
 	accessor := NewMockOffsetAccessor(ctr)
-	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(topic string, partition int32) (int64, error) {
-			return 1, nil
-		})
+	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(1), nil)
 
 	err := service.runKafkaMonitor(accessor)
 	require.Error(t, err)

@@ -45,15 +45,15 @@ func (m *mockKafkaOffsetTable) GetOffset(ctx context.Context, topic string, part
 func TestMgoOffAccessor_GetAndPut(t *testing.T) {
 	tbl := &mockKafkaOffsetTable{}
 	a := NewMgoOffAccessor(tbl)
-	off, err := a.Get("my_topic", 1)
+	off, err := a.Get(testTopic, 1)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), off)
 
 	LoopExecUntilSuccess(context.Background(), "update offset", func() error {
-		return a.Put("my_topic", 1, 10)
+		return a.Put(testTopic, 1, 10)
 	})
 
-	off, err = a.Get("my_topic", 1)
+	off, err = a.Get(testTopic, 1)
 	require.NoError(t, err)
 	require.Equal(t, int64(10), off)
 }

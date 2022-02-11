@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cubefs/blobstore/common/counter"
-	comerrors "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/recordlog"
@@ -40,33 +40,28 @@ import (
 func newDeleteTopicConsumer(t *testing.T) *deleteTopicConsumer {
 	ctr := gomock.NewController(t)
 	mockCmClient := NewMockClusterMgrAPI(ctr)
-	mockCmClient.EXPECT().GetConfig(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context, key string) (ret string, err error) {
-			return "", nil
-		},
-	)
+	mockCmClient.EXPECT().GetConfig(gomock.Any(), gomock.Any()).AnyTimes().Return("", nil)
+
 	volCache := NewMockVolumeCache(ctr)
 	volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
 		func(vid proto.Vid) (*client.VolInfo, error) {
-			return &client.VolInfo{}, nil
+			return &client.VolInfo{Vid: vid}, nil
 		},
 	)
 
 	switchMgr := taskswitch.NewSwitchMgr(mockCmClient)
 	taskSwitch, err := switchMgr.AddSwitch(taskswitch.BlobDeleteSwitchName)
-	if err != nil {
-		panic("unexpect add task switch fail")
-	}
+	require.NoError(t, err)
 
-	mockBlobNode := NewMockBlobNodeAPI(ctr)
-	mockBlobNode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	mockBlobNode.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mockBlobnode := NewMockBlobnodeAPI(ctr)
+	mockBlobnode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mockBlobnode.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	mockProducer := NewMockProducer(ctr)
 	mockProducer.EXPECT().SendMessage(gomock.Any()).AnyTimes().Return(nil)
 	mockConsumer := NewMockConsumer(ctr)
 
-	mockDelLogger := &MockEncoder{}
+	mockDelLogger := &mockEncoder{}
 	tp := taskpool.New(2, 2)
 
 	return &deleteTopicConsumer{
@@ -77,7 +72,7 @@ func newDeleteTopicConsumer(t *testing.T) *deleteTopicConsumer {
 		consumeIntervalMs: time.Duration(0),
 		safeDelayTime:     time.Hour,
 		volCache:          volCache,
-		blobNodeCli:       mockBlobNode,
+		blobnodeCli:       mockBlobnode,
 		failMsgSender:     mockProducer,
 
 		delSuccessCounter:      base.NewCounter(1, "delete", base.KindSuccess),
@@ -94,18 +89,11 @@ func TestDeleteTopicConsumer(t *testing.T) {
 	mockTopicConsumeDelete := newDeleteTopicConsumer(t)
 
 	consumer := mockTopicConsumeDelete.topicConsumers[0].(*MockConsumer)
-	consumer.EXPECT().CommitOffset(gomock.Any()).AnyTimes().DoAndReturn(
-		func(ctx context.Context) error {
-			return nil
-		},
-	)
+	consumer.EXPECT().CommitOffset(gomock.Any()).AnyTimes().Return(nil)
+
 	{
 		// nothing todo
-		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, msgCnt int) (msgs []*sarama.ConsumerMessage) {
-				return []*sarama.ConsumerMessage{}
-			},
-		)
+		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).Return([]*sarama.ConsumerMessage{})
 		mockTopicConsumeDelete.consumeAndDelete(consumer, 0)
 	}
 	{
@@ -162,16 +150,22 @@ func TestDeleteTopicConsumer(t *testing.T) {
 		volCache := NewMockVolumeCache(ctr)
 		volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 1},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 1}},
+				}, nil
 			},
 		)
 		mockTopicConsumeDelete.volCache = volCache
 
 		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, msgCnt int) (msgs []*sarama.ConsumerMessage) {
-				msg := proto.DeleteMsg{Bid: 2, Vid: 2, ReqId: "msg with volume return", Time: time.Now().Unix() - 1}
+				msg := proto.DeleteMsg{
+					Bid:   2,
+					Vid:   2,
+					ReqId: "msg with volume return",
+					Time:  time.Now().Unix() - 1,
+				}
 				msgByte, _ := json.Marshal(msg)
 				kafkaMgs := &sarama.ConsumerMessage{
 					Value: msgByte,
@@ -189,17 +183,18 @@ func TestDeleteTopicConsumer(t *testing.T) {
 		volCache := NewMockVolumeCache(ctr)
 		volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 1},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 1}},
+				}, nil
 			},
 		)
 		mockTopicConsumeDelete.volCache = volCache
 
-		oldBlobNode := mockTopicConsumeDelete.blobNodeCli
-		mockBlobNode := NewMockBlobNodeAPI(ctr)
-		mockBlobNode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errMock)
-		mockTopicConsumeDelete.blobNodeCli = mockBlobNode
+		oldBlobNode := mockTopicConsumeDelete.blobnodeCli
+		mockBlobnode := NewMockBlobnodeAPI(ctr)
+		mockBlobnode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errMock)
+		mockTopicConsumeDelete.blobnodeCli = mockBlobnode
 
 		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, msgCnt int) (msgs []*sarama.ConsumerMessage) {
@@ -213,7 +208,7 @@ func TestDeleteTopicConsumer(t *testing.T) {
 		)
 		mockTopicConsumeDelete.consumeAndDelete(consumer, 2)
 		mockTopicConsumeDelete.volCache = oldCache
-		mockTopicConsumeDelete.blobNodeCli = oldBlobNode
+		mockTopicConsumeDelete.blobnodeCli = oldBlobNode
 	}
 	{
 		// return one message and blobnode return ErrDiskBroken
@@ -221,24 +216,26 @@ func TestDeleteTopicConsumer(t *testing.T) {
 		volCache := NewMockVolumeCache(ctr)
 		volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 1},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 1}},
+				}, nil
 			},
 		)
 		volCache.EXPECT().Update(gomock.Any()).AnyTimes().DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 1},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 1}},
+				}, nil
 			},
 		)
 		mockTopicConsumeDelete.volCache = volCache
 
-		oldBlobNode := mockTopicConsumeDelete.blobNodeCli
-		mockBlobNode := NewMockBlobNodeAPI(ctr)
-		mockBlobNode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(comerrors.ErrDiskBroken)
-		mockTopicConsumeDelete.blobNodeCli = mockBlobNode
+		oldBlobNode := mockTopicConsumeDelete.blobnodeCli
+		mockBlobnode := NewMockBlobnodeAPI(ctr)
+		mockBlobnode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errcode.ErrDiskBroken)
+		mockTopicConsumeDelete.blobnodeCli = mockBlobnode
 
 		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, msgCnt int) (msgs []*sarama.ConsumerMessage) {
@@ -252,7 +249,7 @@ func TestDeleteTopicConsumer(t *testing.T) {
 		)
 		mockTopicConsumeDelete.consumeAndDelete(consumer, 2)
 		mockTopicConsumeDelete.volCache = oldCache
-		mockTopicConsumeDelete.blobNodeCli = oldBlobNode
+		mockTopicConsumeDelete.blobnodeCli = oldBlobNode
 	}
 	{
 		// return one message, blobnode return ErrDiskBroken, and volCache update not eql
@@ -260,24 +257,26 @@ func TestDeleteTopicConsumer(t *testing.T) {
 		volCache := NewMockVolumeCache(ctr)
 		volCache.EXPECT().Get(gomock.Any()).AnyTimes().DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 1},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 1}},
+				}, nil
 			},
 		)
 		volCache.EXPECT().Update(gomock.Any()).DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 1}, {Vuid: 2},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 1}, {Vuid: 2}},
+				}, nil
 			},
 		)
 		mockTopicConsumeDelete.volCache = volCache
 
-		oldBlobNode := mockTopicConsumeDelete.blobNodeCli
-		mockBlobNode := NewMockBlobNodeAPI(ctr)
-		mockBlobNode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(comerrors.ErrDiskBroken)
-		mockTopicConsumeDelete.blobNodeCli = mockBlobNode
+		oldBlobNode := mockTopicConsumeDelete.blobnodeCli
+		mockBlobnode := NewMockBlobnodeAPI(ctr)
+		mockBlobnode.EXPECT().MarkDelete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(errcode.ErrDiskBroken)
+		mockTopicConsumeDelete.blobnodeCli = mockBlobnode
 
 		consumer.EXPECT().ConsumeMessages(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 			func(ctx context.Context, msgCnt int) (msgs []*sarama.ConsumerMessage) {
@@ -293,16 +292,17 @@ func TestDeleteTopicConsumer(t *testing.T) {
 
 		volCache.EXPECT().Update(gomock.Any()).AnyTimes().DoAndReturn(
 			func(vid proto.Vid) (*client.VolInfo, error) {
-				return &client.VolInfo{Vid: 2, VunitLocations: []proto.VunitLocation{
-					{Vuid: 2},
-				}}, nil
+				return &client.VolInfo{
+					Vid:            vid,
+					VunitLocations: []proto.VunitLocation{{Vuid: 2}},
+				}, nil
 			},
 		)
 		mockTopicConsumeDelete.volCache = volCache
 		mockTopicConsumeDelete.consumeAndDelete(consumer, 2)
 
 		mockTopicConsumeDelete.volCache = oldCache
-		mockTopicConsumeDelete.blobNodeCli = oldBlobNode
+		mockTopicConsumeDelete.blobnodeCli = oldBlobNode
 	}
 }
 
@@ -313,7 +313,7 @@ func TestNewDeleteMgr(t *testing.T) {
 	defer broker0.Close()
 
 	consumerCfg := base.KafkaConfig{
-		Topic:      "my_topic",
+		Topic:      testTopic,
 		BrokerList: []string{broker0.Addr()},
 		Partitions: []int32{0},
 	}
@@ -342,21 +342,13 @@ func TestNewDeleteMgr(t *testing.T) {
 
 	mockCmClient := NewMockClusterMgrAPI(ctr)
 	volCache := NewMockVolumeCache(ctr)
-	mockBlobNode := NewMockBlobNodeAPI(ctr)
+	mockBlobnode := NewMockBlobnodeAPI(ctr)
 	accessor := NewMockOffsetAccessor(ctr)
-	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(topic string, partition int32) (int64, error) {
-			return 0, nil
-		},
-	)
-	accessor.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-		func(topic string, partition int32, off int64) error {
-			return nil
-		},
-	)
+	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(0), nil)
+	accessor.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	switchMgr := taskswitch.NewSwitchMgr(mockCmClient)
 
-	service, err := NewDeleteMgr(blobCfg, volCache, accessor, mockBlobNode, switchMgr)
+	service, err := NewDeleteMgr(blobCfg, volCache, accessor, mockBlobnode, switchMgr)
 	require.NoError(t, err)
 
 	// run task

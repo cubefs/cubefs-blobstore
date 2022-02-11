@@ -29,18 +29,18 @@ type IScheduler interface {
 	ListService(ctx context.Context, clusterID proto.ClusterID, idc string) ([]string, error)
 }
 
-// SchedulerClient scheduler client
-type SchedulerClient struct {
+// schedulerClient scheduler client
+type schedulerClient struct {
 	client scheduler.IScheduler
 }
 
 // NewSchedulerClient returns scheduler client
 func NewSchedulerClient(config *scheduler.Config) IScheduler {
-	return &SchedulerClient{client: scheduler.New(config)}
+	return &schedulerClient{client: scheduler.New(config)}
 }
 
 // Register register service to scheduler
-func (c *SchedulerClient) Register(ctx context.Context, clusterID proto.ClusterID, serviceName, host, idc string) error {
+func (c *schedulerClient) Register(ctx context.Context, clusterID proto.ClusterID, serviceName, host, idc string) error {
 	return c.client.RegisterService(ctx, &scheduler.RegisterServiceArgs{
 		ClusterID: clusterID,
 		Module:    serviceName,
@@ -50,27 +50,27 @@ func (c *SchedulerClient) Register(ctx context.Context, clusterID proto.ClusterI
 }
 
 // DeleteService delete service
-func (c *SchedulerClient) DeleteService(ctx context.Context, host string) error {
+func (c *schedulerClient) DeleteService(ctx context.Context, host string) error {
 	return c.client.DeleteService(ctx, &scheduler.DeleteServiceArgs{
 		Host: host,
 	})
 }
 
 // ListService list service
-func (c *SchedulerClient) ListService(ctx context.Context, clusterID proto.ClusterID, idc string) ([]string, error) {
-	span := trace.SpanFromContextSafe(ctx)
+func (c *schedulerClient) ListService(ctx context.Context, clusterID proto.ClusterID, idc string) ([]string, error) {
 	args := &scheduler.ListServicesArgs{
 		Module: proto.ServiceNameWorker,
 		IDC:    idc,
 	}
-	svrInfos, err := c.client.ListServices(ctx, args)
+	services, err := c.client.ListServices(ctx, args)
 	if err != nil {
+		span := trace.SpanFromContextSafe(ctx)
 		span.Errorf("ListServices failed: args[%+v], err[%+v]", args, err)
 		return nil, err
 	}
 
 	var ret []string
-	for _, info := range svrInfos {
+	for _, info := range services {
 		if clusterID == info.ClusterID {
 			ret = append(ret, info.Host)
 		}
