@@ -61,8 +61,6 @@ const (
 	ManualMigrateType = "manual_migrate"
 )
 
-//---------------------------------------------------------------------
-//坏盘修复后台任务
 type RepairState uint8
 
 const (
@@ -142,9 +140,6 @@ func (t *VolRepairTask) Copy() *VolRepairTask {
 	return task
 }
 
-//--------------------------------------------------------------------------------------------------------
-
-// 迁移后台任务
 type MigrateSate uint8
 
 const (
@@ -214,8 +209,6 @@ func (t *MigrateTask) SrcMigDiskID() DiskID {
 	return t.SourceDiskID
 }
 
-//--------------------------------------------------------------------------------------------------
-
 type InspectCheckPoint struct {
 	Id       string `json:"_id" bson:"_id"`
 	StartVid Vid    `json:"start_vid" bson:"start_vid"` // min vid in current batch volumes
@@ -245,8 +238,6 @@ func (inspect *InspectRet) Err() error {
 	}
 	return errors.New(inspect.InspectErrStr)
 }
-
-//------------------------------------------------
 
 // services register
 type SvrInfo struct {

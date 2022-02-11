@@ -18,6 +18,15 @@ import (
 	"math"
 )
 
+// service names
+const (
+	ServiceNameAllocator = "ALLOCATOR"
+	ServiceNameMQProxy   = "MQPROXY"
+	ServiceNameTinker    = "TINKER"
+	ServiceNameWorker    = "worker" // TODO: WORKER
+
+)
+
 type DiskStatus uint8
 
 // disk status
@@ -34,11 +43,29 @@ func (status DiskStatus) IsValid() bool {
 	return status >= DiskStatusNormal && status < DiskStatusMax
 }
 
+func (status DiskStatus) String() string {
+	switch status {
+	case DiskStatusNormal:
+		return "normal"
+	case DiskStatusBroken:
+		return "broken"
+	case DiskStatusRepairing:
+		return "repairing"
+	case DiskStatusRepaired:
+		return "repaired"
+	case DiskStatusDropped:
+		return "dropped"
+	default:
+		return "unknown"
+	}
+}
+
 const (
 	InvalidDiskID = DiskID(0)
 	InValidBlobID = BlobID(0)
 	InvalidCrc32  = uint32(0)
 	InvalidVid    = Vid(0)
+	InvalidVuid   = Vuid(0)
 )
 
 const (
@@ -73,11 +100,6 @@ const (
 	VolumeStatusLock
 	VolumeStatusUnlocking
 	volumeStatusMax
-)
-
-// Unified service name definition
-const (
-	AllocatorSvrName = "ALLOCATOR"
 )
 
 // config key

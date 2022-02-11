@@ -362,7 +362,7 @@ func (s *Service) RunTask() {
 // Register registers self service to scheduler
 func (s *Service) Register(cli client.IScheduler) (err error) {
 	if err := retry.Timed(3, 200).On(func() error {
-		return cli.Register(context.Background(), s.ClusterID, proto.TinkerModule, s.ServiceRegister.Host, s.ServiceRegister.Idc)
+		return cli.Register(context.Background(), s.ClusterID, proto.ServiceNameTinker, s.ServiceRegister.Host, s.ServiceRegister.Idc)
 	}); err != nil {
 		log.Errorf("register failed: err[%+v]", err)
 		return err

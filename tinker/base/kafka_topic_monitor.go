@@ -49,7 +49,7 @@ func NewKafkaTopicMonitor(cfg *KafkaConfig, access IOffsetAccessor, monitorInter
 
 	// create kafka monitor
 	monitor, err := kafka.NewKafkaMonitor(
-		proto.TinkerModule,
+		proto.ServiceNameTinker,
 		cfg.BrokerList,
 		cfg.Topic,
 		partitions,

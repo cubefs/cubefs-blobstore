@@ -94,7 +94,7 @@ func DiskInfoF(info *blobnode.DiskInfo) []string {
 			fmt.Sprintf("ClusterID : %-4d | Readonly: %-6v | IDC: %-12s | Rack: %s",
 				info.ClusterID, info.Readonly, info.Idc, info.Rack),
 			fmt.Sprintf("Status  : %-10s(%d) | Host: %-30s | Path: %s",
-				DiskStatus2Str[info.Status], info.Status, info.Host, info.Path),
+				info.Status, info.Status, info.Host, info.Path),
 			fmt.Sprintf("CreateAt: %s (%s) | LastUpdateAt: %s (%s)",
 				info.CreateAt.Format(time.RFC822), humanize.Time(info.CreateAt),
 				info.LastUpdateAt.Format(time.RFC822), humanize.Time(info.LastUpdateAt)),
@@ -114,7 +114,7 @@ func DiskInfoFV(info *blobnode.DiskInfo) []string {
 	return []string{
 		fmt.Sprint("DiskID   : ", info.DiskID),
 		fmt.Sprint("Readonly : ", info.Readonly),
-		fmt.Sprintf("Status   : %s(%d) ", DiskStatus2Str[info.Status], info.Status),
+		fmt.Sprintf("Status   : %s(%d) ", info.Status, info.Status),
 		fmt.Sprintf("Chunk    : MaxN: %-18d | UsedN: %-23d | FreeN: %-24d",
 			info.MaxChunkCnt, info.UsedChunkCnt, info.FreeChunkCnt),
 		fmt.Sprintf("Size     : %-24s | Used: %-24s | Free: %-24s",

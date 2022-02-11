@@ -39,12 +39,13 @@ func (d *DroppedDiskTable) GetAllDroppingDisk() ([]proto.DiskID, error) {
 	iter := d.tbl.NewIterator(nil)
 	defer iter.Close()
 	ret := make([]proto.DiskID, 0)
+	var diskID proto.DiskID
 	iter.SeekToFirst()
 	for iter.Valid() {
 		if iter.Err() != nil {
 			return nil, iter.Err()
 		}
-		ret = append(ret, proto.DecodeDiskID(iter.Key().Data()))
+		ret = append(ret, diskID.Decode(iter.Key().Data()))
 		iter.Key().Free()
 		iter.Value().Free()
 		iter.Next()
@@ -54,19 +55,19 @@ func (d *DroppedDiskTable) GetAllDroppingDisk() ([]proto.DiskID, error) {
 
 // AddDroppingDisk add a dropping disk
 func (d *DroppedDiskTable) AddDroppingDisk(diskId proto.DiskID) error {
-	key := proto.EncodeDiskID(diskId)
+	key := diskId.Encode()
 	return d.tbl.Put(kvstore.KV{Key: key, Value: uselessVal})
 }
 
 // DroppedDisk finish dropping in a disk
 func (d *DroppedDiskTable) DroppedDisk(diskId proto.DiskID) error {
-	key := proto.EncodeDiskID(diskId)
+	key := diskId.Encode()
 	return d.tbl.Delete(key)
 }
 
 // GetDroppingDisk find a dropping disk if exist
 func (d *DroppedDiskTable) IsDroppingDisk(diskId proto.DiskID) (exist bool, err error) {
-	key := proto.EncodeDiskID(diskId)
+	key := diskId.Encode()
 	_, err = d.tbl.Get(key)
 	if err == kvstore.ErrNotFound {
 		err = nil

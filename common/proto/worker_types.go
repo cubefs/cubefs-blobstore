@@ -14,8 +14,6 @@
 
 package proto
 
-const WorkerSvrName = "worker"
-
 // stats task has done in worker
 type TaskStatistics struct {
 	MigDataSizeByte   uint64 `json:"mig_data_size_byte"`

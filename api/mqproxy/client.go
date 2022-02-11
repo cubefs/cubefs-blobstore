@@ -64,7 +64,7 @@ type LbClient struct {
 
 func NewLbClient(cfg *LbConfig, cmClient *clustermgr.Client, clusterId proto.ClusterID) (LbMsgSender, error) {
 	hostGetter := func() ([]string, error) {
-		svrInfos, err := cmClient.GetService(context.Background(), clustermgr.GetServiceArgs{Name: proto.MqProxySvrName})
+		svrInfos, err := cmClient.GetService(context.Background(), clustermgr.GetServiceArgs{Name: proto.ServiceNameMQProxy})
 		if err != nil {
 			return nil, err
 		}

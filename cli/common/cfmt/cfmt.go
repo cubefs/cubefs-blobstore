@@ -25,18 +25,7 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize"
-
-	"github.com/cubefs/blobstore/common/proto"
 )
-
-// DiskStatus2Str disk status to string
-var DiskStatus2Str = map[proto.DiskStatus]string{
-	proto.DiskStatusNormal:    "Normal",
-	proto.DiskStatusBroken:    "Broken",
-	proto.DiskStatusRepairing: "Repairing",
-	proto.DiskStatusRepaired:  "Repaired",
-	proto.DiskStatusDropped:   "Dropped",
-}
 
 func joinWithPrefix(prefix string, vals []string) string {
 	if len(prefix) > 0 {

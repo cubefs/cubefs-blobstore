@@ -156,7 +156,7 @@ func TestServiceAPI(t *testing.T) {
 	}
 	schedulerCli := scheduler.New(schedulerConf)
 	svrs, err := schedulerCli.ListServices(context.Background(), &scheduler.ListServicesArgs{
-		Module: proto.TinkerModule,
+		Module: proto.ServiceNameTinker,
 		IDC:    "z0",
 	})
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestServiceAPI(t *testing.T) {
 
 	svrInfo := &scheduler.RegisterServiceArgs{
 		ClusterID: proto.ClusterID(1),
-		Module:    proto.TinkerModule,
+		Module:    proto.ServiceNameTinker,
 		Host:      svrHost,
 		Idc:       "z0",
 	}
@@ -188,7 +188,7 @@ func TestServiceAPI(t *testing.T) {
 	require.Equal(t, svrInfo.Idc, svr.IDC)
 
 	svrs, err = schedulerCli.ListServices(context.Background(), &scheduler.ListServicesArgs{
-		Module: proto.TinkerModule,
+		Module: proto.ServiceNameTinker,
 		IDC:    "z0",
 	})
 	require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestServiceAPI(t *testing.T) {
 	})
 	require.NoError(t, err)
 	svrs, err = schedulerCli.ListServices(context.Background(), &scheduler.ListServicesArgs{
-		Module: proto.TinkerModule,
+		Module: proto.ServiceNameTinker,
 		IDC:    "z0",
 	})
 	require.NoError(t, err)
@@ -401,21 +401,21 @@ func newServiceRegisterTbl() db.ISvrRegisterTbl {
 	svr1 := &proto.SvrInfo{
 		ClusterID: proto.ClusterID(1),
 		Host:      "127.0.0.1:xxx",
-		Module:    proto.TinkerModule,
+		Module:    proto.ServiceNameTinker,
 		IDC:       "z0",
 		Ctime:     time.Now().String(),
 	}
 	svr2 := &proto.SvrInfo{
 		ClusterID: proto.ClusterID(1),
 		Host:      "127.0.0.2:xxx",
-		Module:    proto.TinkerModule,
+		Module:    proto.ServiceNameTinker,
 		IDC:       "z1",
 		Ctime:     time.Now().String(),
 	}
 	svr3 := &proto.SvrInfo{
 		ClusterID: proto.ClusterID(1),
 		Host:      "127.0.0.3:xxx",
-		Module:    proto.TinkerModule,
+		Module:    proto.ServiceNameTinker,
 		IDC:       "z2",
 		Ctime:     time.Now().String(),
 	}

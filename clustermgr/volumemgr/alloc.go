@@ -166,7 +166,7 @@ func (a *volumeAllocator) VolumeStatusIdleCallback(ctx context.Context, vol *vol
 	a.idles[vol.volInfoBase.CodeMode].addAllocatable(vol)
 
 	if vol.token != nil {
-		host, _, err := decodeToken(vol.token.tokenID)
+		host, _, err := proto.DecodeToken(vol.token.tokenID)
 		if err != nil {
 			span.Errorf("decode token error,%s", vol.token.String())
 			return err
@@ -181,7 +181,7 @@ func (a *volumeAllocator) VolumeStatusIdleCallback(ctx context.Context, vol *vol
 func (a *volumeAllocator) VolumeStatusActiveCallback(ctx context.Context, vol *volume) error {
 	span := trace.SpanFromContextSafe(ctx)
 	span.Debugf("vid: %d set status active callback, status is %d", vol.vid, vol.volInfoBase.Status)
-	host, _, err := decodeToken(vol.token.tokenID)
+	host, _, err := proto.DecodeToken(vol.token.tokenID)
 	if err != nil {
 		span.Errorf("decode token error,%s", vol.token.String())
 		return err

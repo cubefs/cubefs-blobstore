@@ -28,9 +28,9 @@ func cmdGetService(c *grumble.Context) error {
 	cli, ctx := newCMClient(c.Flags.String("secret"), specificHosts(c.Flags)...), common.CmdContext()
 
 	names := []string{
-		proto.AllocatorSvrName,
-		proto.MqProxySvrName,
-		proto.WorkerSvrName,
+		proto.ServiceNameAllocator,
+		proto.ServiceNameMQProxy,
+		proto.ServiceNameWorker,
 	}
 	name := c.Args.String("name")
 	if name != "" {

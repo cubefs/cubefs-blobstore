@@ -232,7 +232,7 @@ func (v *VolumeMgr) PreRetainVolume(ctx context.Context, tokens []string, host s
 	var retainVolumes []cm.RetainVolume
 	var errCnt int
 	for _, tok := range tokens {
-		tokHost, vid, err := decodeToken(tok)
+		tokHost, vid, err := proto.DecodeToken(tok)
 		if err != nil || tokHost != host {
 			span.Errorf("retain tokenID:%v is error:%v", tok, err)
 			errCnt++
@@ -508,7 +508,7 @@ func (v *VolumeMgr) applyRetainVolume(ctx context.Context, retainVolTokens []cm.
 	span.Debugf("start apply retain volume, retain tokens  is %#v", retainVolTokens)
 
 	for _, retainVol := range retainVolTokens {
-		_, vid, err := decodeToken(retainVol.Token)
+		_, vid, err := proto.DecodeToken(retainVol.Token)
 		if err != nil {
 			span.Errorf("token:%s decode error", retainVol.Token)
 			return errors.Info(ErrInvalidToken, "decode retain token failed").Detail(ErrInvalidToken)
@@ -579,7 +579,7 @@ func (v *VolumeMgr) applyAllocVolume(ctx context.Context, vid proto.Vid, host st
 
 	token := &token{
 		vid:        volume.vid,
-		tokenID:    encodeToken(host, volume.vid),
+		tokenID:    proto.EncodeToken(host, volume.vid),
 		expireTime: expireTime,
 	}
 	volume.token = token

@@ -212,7 +212,7 @@ func NewHandler(service *Service) *rpc.Router {
 func (s *Service) register() error {
 	info := client.RegisterInfo{
 		ClusterID:          uint64(s.ClusterID),
-		Name:               proto.MqProxySvrName,
+		Name:               proto.ServiceNameMQProxy,
 		Host:               s.ServiceRegister.Host,
 		Idc:                s.ServiceRegister.Idc,
 		HeartbeatIntervalS: s.ServiceRegister.HeartbeatIntervalS,

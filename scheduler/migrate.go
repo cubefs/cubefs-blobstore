@@ -544,7 +544,7 @@ func (mgr *MigrateMgr) handleUpdateVolMappingFail(ctx context.Context, task *pro
 func (mgr *MigrateMgr) getTinkerHosts(ctx context.Context) (hosts []string, err error) {
 	span := trace.SpanFromContextSafe(ctx)
 
-	svrs, err := mgr.svrTbl.FindAll(ctx, proto.TinkerModule, "")
+	svrs, err := mgr.svrTbl.FindAll(ctx, proto.ServiceNameTinker, "")
 	if err != nil {
 		span.Errorf("get tinker svr failed, err:%v", err)
 		return

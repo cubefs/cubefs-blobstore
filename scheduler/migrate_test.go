@@ -115,19 +115,19 @@ func NewMockRegisterTbl(respErr error) (tbl db.ISvrRegisterTbl) {
 	mmap := make(map[string]*proto.SvrInfo)
 	svr1 := &proto.SvrInfo{
 		Host:   "127.0.0.1:xxx",
-		Module: proto.TinkerModule,
+		Module: proto.ServiceNameTinker,
 		IDC:    "z0",
 		Ctime:  time.Now().String(),
 	}
 	svr2 := &proto.SvrInfo{
 		Host:   "127.0.0.2:xxx",
-		Module: proto.TinkerModule,
+		Module: proto.ServiceNameTinker,
 		IDC:    "z1",
 		Ctime:  time.Now().String(),
 	}
 	svr3 := &proto.SvrInfo{
 		Host:   "127.0.0.3:xxx",
-		Module: proto.TinkerModule,
+		Module: proto.ServiceNameTinker,
 		IDC:    "z2",
 		Ctime:  time.Now().String(),
 	}

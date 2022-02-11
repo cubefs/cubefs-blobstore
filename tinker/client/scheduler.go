@@ -60,7 +60,7 @@ func (c *SchedulerClient) DeleteService(ctx context.Context, host string) error 
 func (c *SchedulerClient) ListService(ctx context.Context, clusterID proto.ClusterID, idc string) ([]string, error) {
 	span := trace.SpanFromContextSafe(ctx)
 	args := &scheduler.ListServicesArgs{
-		Module: proto.WorkerSvrName,
+		Module: proto.ServiceNameWorker,
 		IDC:    idc,
 	}
 	svrInfos, err := c.client.ListServices(ctx, args)

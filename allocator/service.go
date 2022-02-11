@@ -98,7 +98,7 @@ func New(client clustermgr.APIAllocator, cfg Config) *Service {
 	span, ctx := trace.StartSpanFromContext(context.Background(), "")
 	node := clustermgr.ServiceNode{
 		ClusterID: cfg.ClusterID,
-		Name:      proto.AllocatorSvrName,
+		Name:      proto.ServiceNameAllocator,
 		Host:      cfg.Host,
 		Idc:       cfg.Idc,
 	}

@@ -16,10 +16,9 @@ package proto
 
 import (
 	"encoding/binary"
+	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/cubefs/blobstore/util/errors"
 )
 
 // basic type for all module
@@ -28,26 +27,22 @@ type (
 	BlobID    uint64
 	Vid       uint32
 	ClusterID uint32
-	BidCount  uint32
 )
 
-/*
-	Encode or Decode function for basic type
-*/
-
-func EncodeDiskID(id DiskID) []byte {
+func (id DiskID) Encode() []byte {
 	key := make([]byte, 4)
 	binary.BigEndian.PutUint32(key, uint32(id))
 	return key
 }
 
-func DecodeDiskID(b []byte) DiskID {
+func (id *DiskID) Decode(b []byte) DiskID {
 	key := binary.BigEndian.Uint32(b)
-	return DiskID(key)
+	*id = DiskID(key)
+	return *id
 }
 
-func (diskID DiskID) ToString() string {
-	return strconv.FormatUint(uint64(diskID), 10)
+func (id DiskID) ToString() string {
+	return strconv.FormatUint(uint64(id), 10)
 }
 
 func (vid Vid) ToString() string {
@@ -58,23 +53,25 @@ func (id ClusterID) ToString() string {
 	return strconv.FormatUint(uint64(id), 10)
 }
 
+const seqToken = ";"
+
+// EncodeToken encode host and vid to a string token.
 func EncodeToken(host string, vid Vid) (token string) {
-	token = host + ";" + strconv.FormatUint(uint64(vid), 10)
-	return
+	return fmt.Sprintf("%s%s%s", host, seqToken, strconv.FormatUint(uint64(vid), 10))
 }
 
-func DecodeToken(token string) (h string, vid Vid, err error) {
-	parts := strings.Split(token, ";")
+// DecodeToken decode host and vid from the token.
+func DecodeToken(token string) (host string, vid Vid, err error) {
+	parts := strings.SplitN(token, seqToken, 2)
 	if len(parts) != 2 {
-		err = errors.New("decode tokens error")
+		err = fmt.Errorf("invalid token %s", token)
 		return
 	}
-	h = parts[0]
+	host = parts[0]
 	vidU32, err := strconv.ParseUint(parts[1], 10, 32)
 	if err != nil {
 		return
 	}
 	vid = Vid(vidU32)
-
 	return
 }

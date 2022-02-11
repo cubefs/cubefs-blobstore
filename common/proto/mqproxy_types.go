@@ -18,8 +18,6 @@ import (
 	"github.com/cubefs/blobstore/util/errors"
 )
 
-const MqProxySvrName = "MQPROXY"
-
 var ErrInvalidMsg = errors.New("msg is invalid")
 
 type DeleteStage byte

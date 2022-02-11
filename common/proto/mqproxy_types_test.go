@@ -16,7 +16,6 @@ package proto
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -111,5 +110,5 @@ func TestMsgMarshal(t *testing.T) {
 	var delMsg DeleteMsg
 	err = json.Unmarshal(b, &delMsg)
 	require.NoError(t, err)
-	fmt.Printf("del msg %+v\n", delMsg)
+	t.Logf("del msg %+v", delMsg)
 }

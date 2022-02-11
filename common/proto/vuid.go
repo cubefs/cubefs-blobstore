@@ -25,11 +25,10 @@ type (
 )
 
 const (
-	MaxEpoch    = 16777215
-	MinEpoch    = 1
-	InvalidVuid = Vuid(0)
-	MinIndex    = 0
-	MaxIndex    = 255
+	MinEpoch = 1
+	MaxEpoch = 16777215
+	MinIndex = 0
+	MaxIndex = 255
 )
 
 func (vu Vuid) IsValid() bool {

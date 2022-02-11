@@ -450,7 +450,7 @@ func (s *Service) autoRegister() {
 
 	args := schedulerapi.RegisterServiceArgs{
 		ClusterID: s.ClusterID,
-		Module:    proto.WorkerSvrName,
+		Module:    proto.ServiceNameWorker,
 		Host:      s.ServiceRegister.Host,
 		Idc:       s.ServiceRegister.Idc,
 	}

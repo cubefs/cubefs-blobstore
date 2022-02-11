@@ -18,24 +18,14 @@ import (
 	"github.com/cubefs/blobstore/common/codemode"
 )
 
-const (
-	TinkerModule = "TINKER"
-)
-
 type ShardRepairTask struct {
-	Bid      BlobID            `json:"bid"` // blobId
+	Bid      BlobID            `json:"bid"`
 	CodeMode codemode.CodeMode `json:"code_mode"`
 	Sources  []VunitLocation   `json:"sources"`
-	BadIdxs  []uint8           `json:"bad_idxs"`
+	BadIdxs  []uint8           `json:"bad_idxs"` // TODO: BadIdxes
 	Reason   string            `json:"reason"`
 }
 
 func (task *ShardRepairTask) IsValid() bool {
-	if !task.CodeMode.IsValid() {
-		return false
-	}
-	if !CheckVunitLocations(task.Sources) {
-		return false
-	}
-	return true
+	return task.CodeMode.IsValid() && CheckVunitLocations(task.Sources)
 }

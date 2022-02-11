@@ -101,7 +101,7 @@ func OpenDiskTable(db kvstore.KVStore, ensureIndex bool) (*DiskTable, error) {
 }
 
 func (d *DiskTable) GetDisk(diskID proto.DiskID) (info *DiskInfoRecord, err error) {
-	key := proto.EncodeDiskID(diskID)
+	key := diskID.Encode()
 	v, err := d.tbl.Get(key)
 	if err != nil {
 		return nil, err
@@ -197,7 +197,8 @@ func (d *DiskTable) ListDisk(opt *clustermgr.ListOptionArgs) ([]*DiskInfoRecord,
 				return ret, nil
 			}
 
-			diskID := proto.DecodeDiskID(iter.Value().Data())
+			var diskID proto.DiskID
+			diskID = diskID.Decode(iter.Value().Data())
 			diskInfo, err = d.GetDisk(diskID)
 
 			if err != nil {
@@ -215,7 +216,7 @@ func (d *DiskTable) ListDisk(opt *clustermgr.ListOptionArgs) ([]*DiskInfoRecord,
 }
 
 func (d *DiskTable) AddDisk(info *DiskInfoRecord) error {
-	key := proto.EncodeDiskID(info.DiskID)
+	key := info.DiskID.Encode()
 	value, err := encodeDiskInfoRecord(info)
 	if err != nil {
 		return err
@@ -243,7 +244,7 @@ func (d *DiskTable) AddDisk(info *DiskInfoRecord) error {
 }
 
 func (d *DiskTable) UpdateDisk(diskID proto.DiskID, info *DiskInfoRecord) error {
-	key := proto.EncodeDiskID(info.DiskID)
+	key := info.DiskID.Encode()
 	value, err := encodeDiskInfoRecord(info)
 	if err != nil {
 		return err
@@ -253,7 +254,7 @@ func (d *DiskTable) UpdateDisk(diskID proto.DiskID, info *DiskInfoRecord) error 
 
 // update disk status should remove old index and insert new index
 func (d *DiskTable) UpdateDiskStatus(diskID proto.DiskID, status proto.DiskStatus) error {
-	key := proto.EncodeDiskID(diskID)
+	key := diskID.Encode()
 	value, err := d.tbl.Get(key)
 	if err != nil {
 		return errors.Info(err, "get disk failed").Detail(err)
@@ -292,7 +293,7 @@ func (d *DiskTable) UpdateDiskStatus(diskID proto.DiskID, status proto.DiskStatu
 }
 
 func (d *DiskTable) DeleteDisk(diskID proto.DiskID) error {
-	key := proto.EncodeDiskID(diskID)
+	key := diskID.Encode()
 	value, err := d.tbl.Get(key)
 	if err != nil && err != kvstore.ErrNotFound {
 		return err
@@ -337,7 +338,7 @@ func (d *DiskTable) listDisksByDiskTbl(marker proto.DiskID, count int) ([]*DiskI
 
 	iter.SeekToFirst()
 	if marker != proto.InvalidDiskID {
-		iter.Seek(proto.EncodeDiskID(marker))
+		iter.Seek(marker.Encode())
 		if iter.Valid() {
 			iter.Next()
 		}

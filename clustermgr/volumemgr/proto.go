@@ -16,10 +16,7 @@ package volumemgr
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -197,27 +194,6 @@ type codeModeConf struct {
 	tactic    codemode.Tactic
 	sizeRatio float64
 	enable    bool
-}
-
-func encodeToken(host string, vid proto.Vid) (token string) {
-	token = host + ";" + strconv.FormatUint(uint64(vid), 10)
-	return
-}
-
-func decodeToken(token string) (host string, vid proto.Vid, err error) {
-	parts := strings.Split(token, ";")
-	if len(parts) != 2 {
-		err = errors.New("decode tokens error")
-		return
-	}
-	host = parts[0]
-	vidU32, err := strconv.ParseUint(parts[1], 10, 32)
-	if err != nil {
-		return
-	}
-	vid = proto.Vid(vidU32)
-
-	return
 }
 
 func newShardedVolumes(sliceMapNum uint32) *shardedVolumes {

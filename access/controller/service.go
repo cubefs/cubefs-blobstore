@@ -43,9 +43,9 @@ const (
 
 var (
 	// AllocatorServiceName alias
-	AllocatorServiceName = proto.AllocatorSvrName
+	AllocatorServiceName = proto.ServiceNameAllocator
 	// MQProxyServiceName alias
-	MQProxyServiceName = proto.MqProxySvrName
+	MQProxyServiceName = proto.ServiceNameMQProxy
 )
 
 // HostIDC item of host with idc
