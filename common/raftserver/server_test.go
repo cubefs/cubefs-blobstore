@@ -227,7 +227,6 @@ func TestRaftServer(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		stores[i] = &srvStore{}
 		sms[i] = newSrvStatemachine(cfgs[i].NodeId, stores[i])
-		cfgs[i].KV = stores[i]
 		cfgs[i].SM = sms[i]
 		rss[i], err = NewRaftServer(cfgs[i])
 		require.Nil(t, err)
@@ -305,7 +304,6 @@ func TestRaftServer(t *testing.T) {
 	rss[idx].Stop()
 	err = submit(rss[idx], context.TODO(), "abcdefg", []byte("hudfaijeriuhuoio"))
 	require.NotNil(t, err)
-	stores[idx].kv.Delete(string(raftMemberKey))
 
 	err = rss[(idx+1)%3].(*raftServer).campaign(context.TODO())
 	require.Nil(t, err)
@@ -387,7 +385,6 @@ func TestRaftServer(t *testing.T) {
 	}
 	learnerStore := &srvStore{}
 	learnerSM := newSrvStatemachine(learnerCfg.NodeId, learnerStore)
-	learnerCfg.KV = learnerStore
 	learnerCfg.SM = learnerSM
 	log.Infof("add learner %d=%s", 4, "127.0.0.1:9093")
 	err = rss[0].AddLearner(context.TODO(), 4, "127.0.0.1:9093")
@@ -433,7 +430,6 @@ func TestRaftServerSnapshot(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		stores[i] = &srvStore{}
 		sms[i] = newSrvStatemachine(cfgs[i].NodeId, stores[i])
-		cfgs[i].KV = stores[i]
 		cfgs[i].SM = sms[i]
 		rss[i], err = NewRaftServer(cfgs[i])
 		require.Nil(t, err)
@@ -471,7 +467,6 @@ func TestRaftServerSnapshot(t *testing.T) {
 	}
 	stores[2] = &srvStore{}
 	sms[2] = newSrvStatemachine(cfgs[2].NodeId, stores[2])
-	cfgs[2].KV = stores[2]
 	cfgs[2].SM = sms[2]
 	rss[2], err = NewRaftServer(cfgs[2])
 	require.Nil(t, err)

@@ -31,7 +31,7 @@ import (
 
 var (
 	appliedKey = []byte("$applied")
-	memberKey  = []byte(raftserver.RaftMemberKey)
+	memberKey  = []byte("#raft_members")
 )
 
 type snapshot struct {

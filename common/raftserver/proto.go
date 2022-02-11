@@ -55,10 +55,6 @@ type Status struct {
 	Peers          []Peer `json:"peers"`
 }
 
-const (
-	RaftMemberKey = "#raft_members"
-)
-
 type Member struct {
 	Id      uint64 `json:"id"`
 	Host    string `json:"host"`

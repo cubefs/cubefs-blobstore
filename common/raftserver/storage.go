@@ -15,7 +15,6 @@
 package raftserver
 
 import (
-	"encoding/json"
 	"fmt"
 	"runtime"
 	"sync"
@@ -27,39 +26,25 @@ import (
 	"github.com/cubefs/blobstore/util/log"
 )
 
-var raftMemberKey = []byte(RaftMemberKey)
-
-type KVStorage interface {
-	Put(key, value []byte) error
-	// don't return error if not found key
-	Get(key []byte) ([]byte, error)
-}
-
 type raftStorage struct {
 	nodeId    uint64
 	walMu     sync.RWMutex
 	wal       *wal.Wal
 	shotter   *snapshotter
-	store     KVStorage
 	sm        StateMachine
 	cs        pb.ConfState
 	memberMu  sync.RWMutex
-	members   Members
+	members   map[uint64]Member
 	applied   uint64
 	snapIndex uint64
 }
 
-func NewRaftStorage(walDir string, sync bool, nodeId uint64, store KVStorage, sm StateMachine, shotter *snapshotter) (*raftStorage, error) {
+func NewRaftStorage(walDir string, sync bool, nodeId uint64, sm StateMachine, shotter *snapshotter) (*raftStorage, error) {
 	rs := &raftStorage{
 		nodeId:  nodeId,
 		shotter: shotter,
-		store:   store,
+		members: make(map[uint64]Member),
 		sm:      sm,
-	}
-
-	err := rs.restore()
-	if err != nil {
-		return nil, err
 	}
 
 	wal, err := wal.OpenWal(walDir, sync)
@@ -69,28 +54,6 @@ func NewRaftStorage(walDir string, sync bool, nodeId uint64, store KVStorage, sm
 	rs.wal = wal
 
 	return rs, nil
-}
-
-func (s *raftStorage) restore() error {
-	var (
-		cs pb.ConfState
-		ms Members
-	)
-
-	val, err := s.store.Get(raftMemberKey)
-	if err != nil {
-		return err
-	}
-	if len(val) > 0 {
-		if err = json.Unmarshal(val, &ms); err != nil {
-			return err
-		}
-	}
-	cs = ms.ConfState()
-
-	s.cs = cs
-	s.members = ms
-	return nil
 }
 
 func (s *raftStorage) InitialState() (pb.HardState, pb.ConfState, error) {
@@ -123,9 +86,12 @@ func (s *raftStorage) Entries(lo, hi, maxSize uint64) ([]pb.Entry, error) {
 }
 
 func (s *raftStorage) Snapshot() (pb.Snapshot, error) {
+	var mbs Members
 	s.memberMu.RLock()
 	cs := s.cs
-	members := s.Members()
+	for _, m := range s.members {
+		mbs.Mbs = append(mbs.Mbs, m)
+	}
 	s.memberMu.RUnlock()
 
 	st, err := s.sm.Snapshot()
@@ -147,7 +113,7 @@ func (s *raftStorage) Snapshot() (pb.Snapshot, error) {
 		st: st,
 		meta: snapshotMeta{
 			Name: name,
-			Mbs:  members.Mbs,
+			Mbs:  mbs.Mbs,
 			Meta: pb.SnapshotMetadata{
 				ConfState: cs,
 				Index:     snapIndex,
@@ -213,27 +179,50 @@ func (s *raftStorage) ApplySnapshot(st wal.Snapshot) error {
 	return nil
 }
 
-func (s *raftStorage) SetMembers(members Members) error {
-	val, err := json.Marshal(members)
-	if err != nil {
-		return err
+func (s *raftStorage) confState() pb.ConfState {
+	var cs pb.ConfState
+
+	for _, m := range s.members {
+		if m.Learner {
+			cs.Learners = append(cs.Learners, m.Id)
+		} else {
+			cs.Voters = append(cs.Voters, m.Id)
+		}
 	}
-	if err = s.store.Put(raftMemberKey, val); err != nil {
-		return err
-	}
-	s.memberMu.Lock()
-	s.members = members
-	s.cs = members.ConfState()
-	s.memberMu.Unlock()
-	return nil
+
+	return cs
 }
 
-func (s *raftStorage) Members() Members {
-	var members []Member
+func (s *raftStorage) AddMembers(m Member) {
+	s.memberMu.Lock()
+	defer s.memberMu.Unlock()
+	s.members[m.Id] = m
+	s.cs = s.confState()
+}
+
+func (s *raftStorage) RemoveMember(id uint64) {
+	s.memberMu.Lock()
+	defer s.memberMu.Unlock()
+	delete(s.members, id)
+	s.cs = s.confState()
+}
+
+func (s *raftStorage) SetMembers(members []Member) {
+	mbs := make(map[uint64]Member)
+	s.memberMu.Lock()
+	defer s.memberMu.Unlock()
+	for i := 0; i < len(members); i++ {
+		mbs[members[i].Id] = members[i]
+	}
+	s.members = mbs
+	s.cs = s.confState()
+}
+
+func (s *raftStorage) GetMember(id uint64) (Member, bool) {
 	s.memberMu.RLock()
 	defer s.memberMu.RUnlock()
-	members = append(members, s.members.Mbs...)
-	return Members{members}
+	m, hit := s.members[id]
+	return m, hit
 }
 
 func (s *raftStorage) Close() {

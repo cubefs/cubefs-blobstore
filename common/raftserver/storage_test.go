@@ -17,14 +17,12 @@ package raftserver
 //go:generate mockgen -destination=./storage_mock_test.go -package=raftserver -mock_names KVStorage=MockKVStorage github.com/cubefs/blobstore/common/raftserver KVStorage
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"os"
 	"testing"
 	"time"
 
-	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/cubefs/blobstore/common/raftserver/wal"
@@ -85,70 +83,21 @@ func (sm *storeSM) ApplySnapshot(meta SnapshotMeta, st Snapshot) error {
 func (sm *storeSM) LeaderChange(leader uint64, host string) {
 }
 
-func TestNewRaftStorage(t *testing.T) {
-	os.RemoveAll(walDir)
-	{
-		ctrl := gomock.NewController(t)
-		kv := NewMockKVStorage(ctrl)
-		kv.EXPECT().Get(gomock.Any()).Return(nil, nil)
-		store, err := NewRaftStorage(walDir, true, nodeId, kv, &storeSM{}, newSnapshotter(5, time.Second*10))
-		require.Nil(t, err)
-		store.Close()
-		ctrl.Finish()
-	}
-
-	{
-		ctrl := gomock.NewController(t)
-		kv := NewMockKVStorage(ctrl)
-		kv.EXPECT().Get(gomock.Any()).Return(nil, errors.New("get members error"))
-		_, err := NewRaftStorage(walDir, true, nodeId, kv, &storeSM{}, newSnapshotter(5, time.Second*10))
-		require.NotNil(t, err)
-		ctrl.Finish()
-	}
-
-	{
-		ctrl := gomock.NewController(t)
-		kv := NewMockKVStorage(ctrl)
-		kv.EXPECT().Get(gomock.Any()).Return([]byte("this is not a members value"), nil)
-		_, err := NewRaftStorage(walDir, true, nodeId, kv, &storeSM{}, newSnapshotter(5, time.Second*10))
-		require.NotNil(t, err)
-		ctrl.Finish()
-	}
-}
-
 func TestStorage(t *testing.T) {
 	{
 		os.RemoveAll(walDir)
-		ctrl := gomock.NewController(t)
-		kv := NewMockKVStorage(ctrl)
-		kv.EXPECT().Get(gomock.Any()).Return(nil, nil)
-		store, err := NewRaftStorage(walDir, true, nodeId, kv, &storeSM{}, newSnapshotter(5, time.Second*10))
+		store, err := NewRaftStorage(walDir, true, nodeId, &storeSM{}, newSnapshotter(5, time.Second*10))
 		require.Nil(t, err)
 		hs, cs, _ := store.InitialState()
 		require.Equal(t, hs, pb.HardState{})
 		require.Equal(t, len(cs.Voters), 0)
 		require.Equal(t, len(cs.Learners), 0)
 		store.Close()
-		ctrl.Finish()
 	}
 
 	{
 		os.RemoveAll(walDir)
-		ctrl := gomock.NewController(t)
-		memkv := make(map[string][]byte)
-		kv := NewMockKVStorage(ctrl)
-		kv.EXPECT().Get(gomock.Any()).DoAndReturn(func(key []byte) ([]byte, error) {
-			val, hit := memkv[string(key)]
-			if hit {
-				return val, nil
-			}
-			return nil, nil
-		})
-		kv.EXPECT().Put(gomock.Any(), gomock.Any()).DoAndReturn(func(key, value []byte) error {
-			memkv[string(key)] = value
-			return nil
-		})
-		store, err := NewRaftStorage(walDir, true, nodeId, kv, &storeSM{}, newSnapshotter(5, time.Second*10))
+		store, err := NewRaftStorage(walDir, true, nodeId, &storeSM{}, newSnapshotter(5, time.Second*10))
 		require.Nil(t, err)
 		var entries []pb.Entry
 		for i := 0; i < 1000; i++ {
@@ -221,15 +170,14 @@ func TestStorage(t *testing.T) {
 				{3, "127.0.0.1:8082", false},
 			},
 		}
-		err = store.SetMembers(mbs)
-		require.Nil(t, err)
+		store.SetMembers(mbs.Mbs)
 
-		mbs = store.Members()
-		require.Equal(t, 3, len(mbs.Mbs))
 		for i := 0; i < 3; i++ {
-			require.Equal(t, members[i].Id, mbs.Mbs[i].Id)
-			require.Equal(t, members[i].Host, mbs.Mbs[i].Host)
-			require.Equal(t, members[i].Learner, mbs.Mbs[i].Learner)
+			m, hit := store.GetMember(members[i].Id)
+			require.True(t, hit)
+			require.Equal(t, members[i].Id, m.Id)
+			require.Equal(t, members[i].Host, m.Host)
+			require.Equal(t, members[i].Learner, m.Learner)
 		}
 
 		_, err = store.Snapshot()
@@ -246,6 +194,5 @@ func TestStorage(t *testing.T) {
 		require.Equal(t, len(mbs.ConfState().Learners), len(snap.Metadata.ConfState.Learners))
 
 		store.Close()
-		ctrl.Finish()
 	}
 }

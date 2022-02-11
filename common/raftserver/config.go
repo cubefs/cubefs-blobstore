@@ -63,9 +63,6 @@ type Config struct {
 	// Applied is the last applied index. It should only be set when restarting
 	Applied uint64 `json:"-"`
 
-	// store raft members
-	KV KVStorage `json:"-"`
-
 	SM StateMachine `json:"-"`
 }
 
@@ -80,10 +77,6 @@ func (cfg *Config) Verify() error {
 
 	if cfg.WalDir == "" {
 		return fmt.Errorf("Invalid WalDir=%s", cfg.WalDir)
-	}
-
-	if cfg.KV == nil {
-		return fmt.Errorf("KVStorage is nil")
 	}
 
 	if cfg.SM == nil {

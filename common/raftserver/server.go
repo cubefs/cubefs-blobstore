@@ -66,8 +66,6 @@ type raftServer struct {
 	sm             StateMachine
 	readNotifier   atomic.Value
 	notifiers      sync.Map
-	memberMu       sync.RWMutex
-	members        map[uint64]Member
 	tr             Transport
 	applyWait      WaitTime
 	propc          chan propose
@@ -95,7 +93,6 @@ func NewRaftServer(cfg *Config) (RaftServer, error) {
 		shotter:        newSnapshotter(cfg.MaxSnapConcurrency, snapTimeout),
 		idGen:          NewGenerator(cfg.NodeId, time.Now()),
 		sm:             cfg.SM,
-		members:        make(map[uint64]Member),
 		applyWait:      NewTimeList(),
 		propc:          make(chan propose, 512),
 		readStateC:     make(chan raft.ReadState, 64),
@@ -108,20 +105,16 @@ func NewRaftServer(cfg *Config) (RaftServer, error) {
 	rs.readNotifier.Store(newReadIndexNotifier())
 
 	begin := time.Now()
-	store, err := NewRaftStorage(cfg.WalDir, cfg.WalSync, cfg.NodeId, cfg.KV, rs.sm, rs.shotter)
+	store, err := NewRaftStorage(cfg.WalDir, cfg.WalSync, cfg.NodeId, rs.sm, rs.shotter)
 	if err != nil {
 		return nil, err
 	}
+	mbs := cfg.GetMembers()
 	lastIndex, _ := store.LastIndex()
-	hs, cs, err := store.InitialState()
-	if err != nil {
-		store.Close()
-		return nil, err
-	}
 	firstIndex, _ := store.FirstIndex()
 
-	log.Infof("load raft wal success, total: %dus firstIndex: %d lastIndex: %d hs: %s cs: %s",
-		time.Since(begin).Microseconds(), firstIndex, lastIndex, hs.String(), cs.String())
+	log.Infof("load raft wal success, total: %dus firstIndex: %d lastIndex: %d",
+		time.Since(begin).Microseconds(), firstIndex, lastIndex)
 
 	rs.store = store
 	raftCfg := &raft.Config{
@@ -136,17 +129,8 @@ func NewRaftServer(cfg *Config) (RaftServer, error) {
 		Logger:          log.DefaultLogger,
 	}
 	rs.tr = NewTransport(cfg.ListenPort, rs)
-	if lastIndex == 0 {
-		if err := store.SetMembers(cfg.GetMembers()); err != nil { // use config members
-			return nil, err
-		}
-	}
-	members := store.Members()
-	for _, m := range members.Mbs {
+	for _, m := range mbs.Mbs {
 		rs.addMember(m.Id, m.Host, m.Learner)
-	}
-	if cfg.Applied > hs.Commit {
-		cfg.Applied = hs.Commit
 	}
 	raftCfg.Applied = cfg.Applied
 	store.SetApplied(cfg.Applied)
@@ -276,9 +260,13 @@ func (s *raftServer) Status() Status {
 		LeadTransferee: st.LeadTransferee,
 	}
 	for id, pr := range st.Progress {
+		var host string
+		if m, ok := s.store.GetMember(id); ok {
+			host = m.Host
+		}
 		peer := Peer{
 			Id:              id,
-			Host:            s.getAddress(id),
+			Host:            host,
 			Match:           pr.Match,
 			Next:            pr.Next,
 			State:           pr.State.String(),
@@ -352,15 +340,6 @@ func (s *raftServer) raftApply() {
 	}
 }
 
-func (s *raftServer) getAddress(id uint64) string {
-	s.memberMu.RLock()
-	defer s.memberMu.RUnlock()
-	if m, hit := s.members[id]; hit {
-		return m.Host
-	}
-	return ""
-}
-
 func (s *raftServer) applyConfChange(entry pb.Entry) {
 	var cc pb.ConfChange
 	if err := cc.Unmarshal(entry.Data); err != nil {
@@ -380,9 +359,6 @@ func (s *raftServer) applyConfChange(entry pb.Entry) {
 		s.addMember(cc.NodeID, string(cc.Context), true)
 	}
 	s.n.ApplyConfChange(cc)
-	if err := s.store.SetMembers(s.getMembers()); err != nil {
-		log.Panicf("save members error: %v", err)
-	}
 	if err := s.sm.ApplyMemberChange(ConfChange(cc), entry.Index); err != nil {
 		log.Panicf("application sm apply member change error: %v", err)
 	}
@@ -465,12 +441,7 @@ func (s *raftServer) applySnapshot(snap Snapshot) {
 		return
 	}
 	log.Infof("apply snapshot(%s) success", sm.Name)
-	s.updateMembers(Members{sm.Mbs})
-	if err := s.store.SetMembers(Members{sm.Mbs}); err != nil {
-		log.Infof("failed to set members in snapshot(%s) reason: %v", sm.Name, err)
-		nr.notify(err)
-		return
-	}
+	s.updateMembers(sm.Mbs)
 	s.store.SetApplied(sm.Meta.Index)
 	nr.notify(nil)
 }
@@ -507,7 +478,11 @@ func (s *raftServer) raftStart() {
 			if rd.SoftState != nil {
 				leader := atomic.SwapUint64(&s.lead, rd.SoftState.Lead)
 				if rd.SoftState.Lead != leader {
-					s.sm.LeaderChange(rd.SoftState.Lead, s.getAddress(rd.SoftState.Lead))
+					var leaderHost string
+					if m, ok := s.store.GetMember(rd.SoftState.Lead); ok {
+						leaderHost = m.Host
+					}
+					s.sm.LeaderChange(rd.SoftState.Lead, leaderHost)
 				}
 			}
 			isLeader := s.IsLeader()
@@ -581,11 +556,9 @@ func (s *raftServer) raftStart() {
 func (s *raftServer) processMessages(ms []pb.Message) []pb.Message {
 	sentAppResp := false
 	for i := len(ms) - 1; i >= 0; i-- {
-		s.memberMu.RLock()
-		if _, hit := s.members[ms[i].To]; !hit {
+		if _, hit := s.store.GetMember(ms[i].To); !hit {
 			ms[i].To = 0
 		}
-		s.memberMu.RUnlock()
 		if ms[i].Type == pb.MsgAppResp {
 			if sentAppResp {
 				ms[i].To = 0
@@ -715,44 +688,20 @@ func (s *raftServer) addMember(id uint64, host string, learner bool) {
 		Host:    host,
 		Learner: learner,
 	}
-	s.memberMu.Lock()
-	s.members[id] = m
-	s.memberMu.Unlock()
+	s.store.AddMembers(m)
 	if id != s.cfg.NodeId {
 		s.tr.AddMember(m)
 	}
 }
 
 func (s *raftServer) removeMember(id uint64) {
-	s.memberMu.Lock()
-	delete(s.members, id)
-	s.memberMu.Unlock()
+	s.store.RemoveMember(id)
 	s.tr.RemoveMember(id)
 }
 
-func (s *raftServer) updateMembers(mbs Members) {
-	s.memberMu.RLock()
-	members := make(map[uint64]Member)
-	var ms []Member
-	for _, m := range mbs.Mbs {
-		members[m.Id] = m
-		if m.Id != s.cfg.NodeId {
-			ms = append(ms, m)
-		}
-	}
-	s.members = members
-	s.memberMu.RUnlock()
-	s.tr.SetMembers(ms)
-}
-
-func (s *raftServer) getMembers() Members {
-	var members Members
-	s.memberMu.RLock()
-	defer s.memberMu.RUnlock()
-	for _, m := range s.members {
-		members.Mbs = append(members.Mbs, m)
-	}
-	return members
+func (s *raftServer) updateMembers(mbs []Member) {
+	s.store.SetMembers(mbs)
+	s.tr.SetMembers(mbs)
 }
 
 func (s *raftServer) handleMessage(msgs raftMsgs) error {

@@ -65,7 +65,6 @@ func NewService(cfg config) *Service {
 		ProposeTimeout: cfg.ProposeTimeout,
 		Applied:        applied,
 		Peers:          cfg.RaftPeers,
-		KV:             store,
 		SM:             store,
 	}
 	rs, err := raftserver.NewRaftServer(raftCfg)

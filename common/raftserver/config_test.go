@@ -20,16 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type configstore struct{}
-
-func (s *configstore) Put(key, value []byte) error {
-	return nil
-}
-
-func (s *configstore) Get(key []byte) ([]byte, error) {
-	return nil, nil
-}
-
 type configSM struct{}
 
 func (sm *configSM) Apply(data [][]byte, index uint64) error {
@@ -62,9 +52,6 @@ func TestConfig(t *testing.T) {
 	require.NotNil(t, cfg.Verify())
 
 	cfg.WalDir = "/tmp/wal"
-	require.NotNil(t, cfg.Verify())
-
-	cfg.KV = &configstore{}
 	require.NotNil(t, cfg.Verify())
 
 	cfg.SM = &configSM{}
