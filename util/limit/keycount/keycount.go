@@ -16,7 +16,6 @@ package keycount
 
 import (
 	"sync"
-	"sync/atomic"
 
 	"github.com/cubefs/blobstore/util/limit"
 )
@@ -105,20 +104,16 @@ func (s *blocker) acquire() {
 }
 
 func (s *blocker) release() {
-	s.subRef()
 	s.ready <- struct{}{}
 }
 
-func (s *blocker) loadRef() int32 {
-	return atomic.LoadInt32(&s.ref)
-}
-
 func (s *blocker) addRef() {
-	atomic.AddInt32(&s.ref, 1)
+	s.ref++
 }
 
-func (s *blocker) subRef() {
-	atomic.AddInt32(&s.ref, -1)
+func (s *blocker) subRef() int32 {
+	s.ref--
+	return s.ref
 }
 
 type blockingKeyCountLimit struct {
@@ -150,41 +145,21 @@ func (l *blockingKeyCountLimit) Acquire(keys ...interface{}) error {
 	if len(keys) == 0 {
 		return limit.ErrLimited
 	}
-	if len(keys) > 1 {
-		kls := make([]*blocker, 0, len(keys))
-		l.lock.Lock()
-		for _, key := range keys {
-			kl, ok := l.keyMap[key]
-			if !ok {
-				kl = newBlocker(l.limit)
-				l.keyMap[key] = kl
-			}
-			kls = append(kls, kl)
+	kls := make([]*blocker, 0, len(keys))
+	l.lock.Lock()
+	for _, key := range keys {
+		kl, ok := l.keyMap[key]
+		if !ok {
+			kl = newBlocker(l.limit)
+			l.keyMap[key] = kl
 		}
-		for _, kl := range kls {
-			atomic.AddInt32(&kl.ref, 1)
-			kl.acquire()
-		}
-		l.lock.Unlock()
-		return nil
-	}
-
-	// for single key
-	key := keys[0]
-	l.lock.RLock()
-	kl := l.keyMap[key]
-	if kl == nil {
-		l.lock.RUnlock()
-		l.lock.Lock()
-		kl = newBlocker(l.limit)
-		l.keyMap[key] = kl
 		kl.addRef()
-		l.lock.Unlock()
-	} else {
-		kl.addRef()
-		l.lock.RUnlock()
+		kls = append(kls, kl)
 	}
-	kl.acquire()
+	l.lock.Unlock()
+	for _, kl := range kls {
+		kl.acquire()
+	}
 	return nil
 }
 
@@ -197,17 +172,18 @@ func (l *blockingKeyCountLimit) Release(keys ...interface{}) {
 			l.lock.Unlock()
 			panic("key not in map. Possible reason: Release without Acquire.")
 		}
-		if kl.loadRef() < 0 {
+		ref := kl.subRef()
+		if ref < 0 {
 			l.lock.Unlock()
 			panic("internal error: refs < 0")
 		}
-		if kl.loadRef() == 0 {
+		if ref == 0 {
 			delete(l.keyMap, key)
 		}
 		kls = append(kls, kl)
 	}
+	l.lock.Unlock()
 	for _, kl := range kls {
 		kl.release()
 	}
-	l.lock.Unlock()
 }

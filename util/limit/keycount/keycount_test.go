@@ -15,6 +15,7 @@
 package keycount
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -130,6 +131,22 @@ func TestBlockingKeyLimitBase(t *testing.T) {
 	require.False(t, done1.Get())
 	require.False(t, done2.Get())
 	require.False(t, done3.Get())
+
+	// for deadlock test
+	key := "1"
+	var wg sync.WaitGroup
+	runtime.GOMAXPROCS(10)
+	limiter := NewBlockingKeyCountLimit(1)
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			limiter.Acquire(key)
+			time.Sleep(time.Millisecond * 10)
+			limiter.Release(key)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 type atomicBool struct {
