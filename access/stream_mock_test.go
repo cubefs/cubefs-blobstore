@@ -223,7 +223,11 @@ var storageAPIRangeGetShard = func(ctx context.Context, host string, args *blobn
 	}
 	if vuidController.Isblocked(args.Vuid) {
 		vuidController.block()
-		err = errors.New("get shard timeout")
+		if rand.Intn(2) == 0 {
+			err = errors.New("get shard timeout")
+		} else {
+			err = errors.New("get shard Timeout")
+		}
 		return
 	}
 

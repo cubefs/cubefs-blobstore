@@ -440,7 +440,8 @@ func minU64(a, b uint64) uint64 {
 }
 
 func errorTimeout(err error) bool {
-	return strings.Contains(err.Error(), "timeout")
+	msg := err.Error()
+	return strings.Contains(msg, "timeout") || strings.Contains(msg, "Timeout")
 }
 
 func errorConnectionRefused(err error) bool {
