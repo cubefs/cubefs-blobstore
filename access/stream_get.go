@@ -41,6 +41,7 @@ import (
 var (
 	errNeedReconstructRead = errors.New("need to reconstruct read")
 	errCanceledReadShard   = errors.New("canceled read shard")
+	errPunishedDisk        = errors.New("punished disk")
 )
 
 type blobGetArgs struct {
@@ -450,14 +451,13 @@ func (h *Handler) readOneShard(ctx context.Context, serviceController controller
 			vuid.index, clusterID, vid, stopChan)
 		return err
 	}, nil); err != nil {
-		if err == errCanceledReadShard {
-			span.Debugf("read blob(%d %d %d) on blobnode(%d %d %s) ecidx(%d) canceled",
-				clusterID, vid, blob.Bid, vuid.vuid, vuid.diskID, vuid.host, vuid.index)
+		if err == errPunishedDisk || err == errCanceledReadShard {
+			span.Debugf("read blob(%d %d %d) on blobnode(%d %d %s) ecidx(%d): %s",
+				clusterID, vid, blob.Bid, vuid.vuid, vuid.diskID, vuid.host, vuid.index, err.Error())
 			return shardResult
 		}
 		span.Warnf("read blob(%d %d %d) on blobnode(%d %d %s) ecidx(%d): %s",
-			clusterID, vid, blob.Bid,
-			vuid.vuid, vuid.diskID, vuid.host, vuid.index, errors.Detail(err))
+			clusterID, vid, blob.Bid, vuid.vuid, vuid.diskID, vuid.host, vuid.index, errors.Detail(err))
 		return shardResult
 	}
 	defer body.Close()
@@ -573,6 +573,13 @@ func (h *Handler) getOneShardFromHost(ctx context.Context, serviceController con
 	cancelChan <-chan struct{}, // do not retry again if cancelChan was closed
 ) (io.ReadCloser, error) {
 	span := trace.SpanFromContextSafe(ctx)
+
+	// skip punished disk
+	if diskHost, err := serviceController.GetDiskHost(ctx, diskID); err != nil {
+		return nil, err
+	} else if diskHost.Punished {
+		return nil, errPunishedDisk
+	}
 
 	var (
 		rbody io.ReadCloser
