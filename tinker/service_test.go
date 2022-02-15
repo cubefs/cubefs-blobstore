@@ -160,7 +160,7 @@ func TestRunKafkaMonitor(t *testing.T) {
 	ctr := gomock.NewController(t)
 	service := newMockService(t)
 
-	accessor := NewMockOffsetAccessor(ctr)
+	accessor := NewMockDatabase(ctr)
 	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(1), nil)
 
 	err := service.runKafkaMonitor(accessor)

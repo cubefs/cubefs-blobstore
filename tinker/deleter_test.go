@@ -343,9 +343,9 @@ func TestNewDeleteMgr(t *testing.T) {
 	mockCmClient := NewMockClusterMgrAPI(ctr)
 	volCache := NewMockVolumeCache(ctr)
 	mockBlobnode := NewMockBlobnodeAPI(ctr)
-	accessor := NewMockOffsetAccessor(ctr)
+	accessor := NewMockDatabase(ctr)
 	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(0), nil)
-	accessor.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	accessor.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	switchMgr := taskswitch.NewSwitchMgr(mockCmClient)
 
 	service, err := NewDeleteMgr(blobCfg, volCache, accessor, mockBlobnode, switchMgr)

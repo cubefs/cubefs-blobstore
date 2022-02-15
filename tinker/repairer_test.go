@@ -49,8 +49,8 @@ func newShardRepairMgr(t *testing.T) *ShardRepairMgr {
 	sender := NewMockProducer(ctr)
 	sender.EXPECT().SendMessage(gomock.Any()).AnyTimes().Return(nil)
 
-	orphanedShardTable := NewMockOrphanedShardTbl(ctr)
-	orphanedShardTable.EXPECT().SaveOrphanedShard(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	db := NewMockDatabase(ctr)
+	db.EXPECT().Save(gomock.Any()).AnyTimes().Return(nil)
 
 	cmClient := NewMockClusterMgrAPI(ctr)
 	cmClient.EXPECT().GetConfig(gomock.Any(), gomock.Any()).AnyTimes().Return("", nil)
@@ -64,7 +64,7 @@ func newShardRepairMgr(t *testing.T) *ShardRepairMgr {
 		workerSelector:       selector,
 		workerCli:            worker,
 		failMsgSender:        sender,
-		orphanedShardTable:   orphanedShardTable,
+		orphanShardTable:     db,
 		taskSwitch:           taskSwitch,
 		failTopicConsumers:   []base.IConsumer{consumer},
 		taskPool:             taskpool.New(1, 1),
@@ -215,9 +215,9 @@ func TestNewShardRepairMgr(t *testing.T) {
 	cmClient := NewMockClusterMgrAPI(ctr)
 	switchMgr := taskswitch.NewSwitchMgr(cmClient)
 
-	accessor := NewMockOffsetAccessor(ctr)
+	accessor := NewMockDatabase(ctr)
 	accessor.EXPECT().Get(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(0), nil)
-	accessor.EXPECT().Put(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	accessor.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	scheduler := NewMockScheduler(ctr)
 	scheduler.EXPECT().ListService(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
@@ -226,15 +226,15 @@ func TestNewShardRepairMgr(t *testing.T) {
 		},
 	)
 
-	orphanedShardTable := NewMockOrphanedShardTbl(ctr)
-	orphanedShardTable.EXPECT().SaveOrphanedShard(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	db := NewMockDatabase(ctr)
+	db.EXPECT().Save(gomock.Any()).AnyTimes().Return(nil)
 
 	worker := NewMockWorkerCli(ctr)
 	worker.EXPECT().RepairShard(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	_, err := NewShardRepairMgr(cfg, volCache, switchMgr, accessor, scheduler, orphanedShardTable, worker)
+	_, err := NewShardRepairMgr(cfg, volCache, switchMgr, accessor, scheduler, db, worker)
 	require.NoError(t, err)
 
-	_, err = NewShardRepairMgr(cfg, volCache, switchMgr, accessor, scheduler, orphanedShardTable, worker)
+	_, err = NewShardRepairMgr(cfg, volCache, switchMgr, accessor, scheduler, db, worker)
 	require.Error(t, err)
 }

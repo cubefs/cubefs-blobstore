@@ -15,9 +15,9 @@
 package tinker
 
 // github.com/cubefs/blobstore/tinker/... module tinker interfaces
-//go:generate mockgen -destination=./base_mock_test.go -package=tinker -mock_names IConsumer=MockConsumer,IProducer=MockProducer,IVolumeCache=MockVolumeCache,IOffsetAccessor=MockOffsetAccessor,IBaseMgr=MockBaseMgr github.com/cubefs/blobstore/tinker/base IConsumer,IProducer,IVolumeCache,IOffsetAccessor,IBaseMgr
+//go:generate mockgen -destination=./base_mock_test.go -package=tinker -mock_names IConsumer=MockConsumer,IProducer=MockProducer,IVolumeCache=MockVolumeCache,IBaseMgr=MockBaseMgr github.com/cubefs/blobstore/tinker/base IConsumer,IProducer,IVolumeCache,IBaseMgr
 //go:generate mockgen -destination=./client_mock_test.go -package=tinker -mock_names ClusterMgrAPI=MockClusterMgrAPI,IScheduler=MockScheduler,BlobnodeAPI=MockBlobnodeAPI,IWorker=MockWorkerCli github.com/cubefs/blobstore/tinker/client ClusterMgrAPI,IScheduler,BlobnodeAPI,IWorker
-//go:generate mockgen -destination=./db_mock_test.go -package=tinker -mock_names IOrphanedShardTbl=MockOrphanedShardTbl github.com/cubefs/blobstore/tinker/db IOrphanedShardTbl
+//go:generate mockgen -destination=./db_mock_test.go -package=tinker -mock_names IDatabase=MockDatabase github.com/cubefs/blobstore/tinker/db IDatabase
 
 import (
 	"errors"

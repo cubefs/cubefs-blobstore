@@ -17,6 +17,7 @@ package base
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Shopify/sarama"
@@ -180,7 +181,7 @@ func newMockAccess(err error) *mockAccess {
 	}
 }
 
-func (m *mockAccess) Put(topic string, partition int32, off int64) error {
+func (m *mockAccess) Set(topic string, partition int32, off int64) error {
 	key := fmt.Sprintf("%s_%d", topic, partition)
 	m.offsets[key] = off
 	return m.retErr
@@ -189,6 +190,26 @@ func (m *mockAccess) Put(topic string, partition int32, off int64) error {
 func (m *mockAccess) Get(topic string, partition int32) (int64, error) {
 	key := fmt.Sprintf("%s_%d", topic, partition)
 	return m.offsets[key], m.retErr
+}
+
+type mockKafkaOffsetTable struct {
+	mockErr error
+	offset  int64
+}
+
+func (m *mockKafkaOffsetTable) Set(topic string, partition int32, off int64) error {
+	if m.mockErr != nil {
+		return m.mockErr
+	}
+	atomic.AddInt64(&m.offset, off)
+	return nil
+}
+
+func (m *mockKafkaOffsetTable) Get(topic string, partition int32) (int64, error) {
+	if m.mockErr != nil {
+		return 0, m.mockErr
+	}
+	return atomic.LoadInt64(&m.offset), nil
 }
 
 func TestPtConsumer(t *testing.T) {
@@ -304,9 +325,7 @@ func TestNewTopicConsumer(t *testing.T) {
 	}
 
 	tbl := &mockKafkaOffsetTable{}
-	a := mgoOffsetAccessor{offsetTbl: tbl}
-
-	consumer, err := NewTopicConsumer(cfg, a)
+	consumer, err := NewTopicConsumer(cfg, tbl)
 	require.NoError(t, err)
 
 	msgs := consumer.ConsumeMessages(context.Background(), 1)
@@ -317,12 +336,12 @@ func TestNewTopicConsumer(t *testing.T) {
 	require.Error(t, err)
 
 	cfg.BrokerList = []string{}
-	_, err = NewTopicConsumer(cfg, a)
+	_, err = NewTopicConsumer(cfg, tbl)
 	require.Error(t, err)
 
 	cfg.Partitions = nil
 	cfg.BrokerList = []string{broker0.Addr()}
-	_, err = NewTopicConsumer(cfg, a)
+	_, err = NewTopicConsumer(cfg, tbl)
 	require.Error(t, err)
 }
 

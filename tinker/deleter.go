@@ -34,6 +34,7 @@ import (
 	"github.com/cubefs/blobstore/common/trace"
 	"github.com/cubefs/blobstore/tinker/base"
 	"github.com/cubefs/blobstore/tinker/client"
+	"github.com/cubefs/blobstore/tinker/db"
 	"github.com/cubefs/blobstore/util/taskpool"
 )
 
@@ -184,7 +185,7 @@ type DeleteMgr struct {
 func NewDeleteMgr(
 	cfg *BlobDeleteConfig,
 	volCache base.IVolumeCache,
-	offAccessor base.IOffsetAccessor,
+	offAccessor db.IKafkaOffsetTable,
 	blobnodeCli client.BlobnodeAPI,
 	switchMgr *taskswitch.SwitchMgr,
 ) (*DeleteMgr, error) {

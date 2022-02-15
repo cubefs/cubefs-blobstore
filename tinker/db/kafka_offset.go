@@ -22,45 +22,41 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// IKafkaOffsetTbl define interface of kafka offset table use by delete or repair message consume
-type IKafkaOffsetTbl interface {
-	UpdateOffset(ctx context.Context, topic string, partition int32, off int64) error
-	GetOffset(ctx context.Context, topic string, partition int32) (int64, error)
+// IKafkaOffsetTable define interface of kafka offset table use by delete or repair message consume.
+type IKafkaOffsetTable interface {
+	Set(topic string, partition int32, offset int64) error
+	Get(topic string, partition int32) (int64, error)
 }
 
-// KafkaOffsetTbl records consumer offset
-type KafkaOffsetTbl struct {
-	coll *mongo.Collection
-}
-
-// OffsetInfo offset info with topic partition and offset
-type OffsetInfo struct {
+type kafkaOffset struct {
 	Topic     string `bson:"topic"`
 	Partition int32  `bson:"partition"`
 	Offset    int64  `bson:"offset"`
 }
 
-func openKafkaOffsetTbl(coll *mongo.Collection) (IKafkaOffsetTbl, error) {
-	return &KafkaOffsetTbl{coll: coll}, nil
+type kafkaOffsetTable struct {
+	coll *mongo.Collection
 }
 
-// UpdateOffset update consume offset
-func (t *KafkaOffsetTbl) UpdateOffset(ctx context.Context, topic string, partition int32, off int64) error {
-	info := OffsetInfo{Topic: topic, Partition: partition, Offset: off}
+func openKafkaOffsetTable(coll *mongo.Collection) IKafkaOffsetTable {
+	return &kafkaOffsetTable{coll: coll}
+}
+
+func (t *kafkaOffsetTable) Set(topic string, partition int32, off int64) error {
+	info := kafkaOffset{Topic: topic, Partition: partition, Offset: off}
 	selector := bson.M{"topic": topic, "partition": partition}
 
 	update := bson.M{
 		"$set": info,
 	}
 	opts := options.Update().SetUpsert(true)
-	_, err := t.coll.UpdateOne(ctx, selector, update, opts)
+	_, err := t.coll.UpdateOne(context.Background(), selector, update, opts)
 	return err
 }
 
-// GetOffset get consume offset
-func (t *KafkaOffsetTbl) GetOffset(ctx context.Context, topic string, partition int32) (int64, error) {
-	infos := OffsetInfo{}
+func (t *kafkaOffsetTable) Get(topic string, partition int32) (int64, error) {
+	infos := kafkaOffset{}
 	selector := bson.M{"topic": topic, "partition": partition}
-	err := t.coll.FindOne(ctx, &selector).Decode(&infos)
+	err := t.coll.FindOne(context.Background(), &selector).Decode(&infos)
 	return infos.Offset, err
 }

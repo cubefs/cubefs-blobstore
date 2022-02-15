@@ -16,7 +16,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -25,43 +24,38 @@ import (
 	"github.com/cubefs/blobstore/common/mongoutil"
 )
 
-// Database database with table and client
-type Database struct {
-	DB                 *mongo.Database
-	OrphanedShardTable IOrphanedShardTbl
-	KafkaOffsetTable   IKafkaOffsetTbl
+// IDatabase all table database.
+type IDatabase interface {
+	IKafkaOffsetTable
+	IOrphanShardTable
+}
+
+type database struct {
+	db *mongo.Database
+	IKafkaOffsetTable
+	IOrphanShardTable
 }
 
 // Config database config
 type Config struct {
-	Mongo                mongoutil.Config `json:"mongo"`
-	DBName               string           `json:"db_name"`
-	OrphanedShardTblName string           `json:"orphaned_shard_tbl_name"`
-	KafkaOffsetTblName   string           `json:"kafka_offset_tbl_name"`
+	Mongo            mongoutil.Config `json:"mongo"`
+	DBName           string           `json:"db_name"`
+	OrphanShardTable string           `json:"orphaned_shard_tbl_name"` // TODO: orphan
+	KafkaOffsetTable string           `json:"kafka_offset_tbl_name"`
 }
 
-// OpenDatabase open database wit config
-func OpenDatabase(cfg Config) (*Database, error) {
+// OpenDatabase open database with all table.
+func OpenDatabase(cfg Config) (IDatabase, error) {
 	client, err := mongoutil.GetClient(cfg.Mongo)
 	if err != nil {
 		return nil, err
 	}
-	db0 := client.Database(cfg.DBName)
+	db := client.Database(cfg.DBName)
 
-	db := new(Database)
-	db.DB = db0
-
-	db.OrphanedShardTable, err = openOrphanedShardTbl(mustCreateCollection(db0, cfg.OrphanedShardTblName))
-	if err != nil {
-		return nil, err
-	}
-
-	db.KafkaOffsetTable, err = openKafkaOffsetTbl(mustCreateCollection(db0, cfg.KafkaOffsetTblName))
-	if err != nil {
-		return nil, err
-	}
-
-	return db, nil
+	tables := &database{db: db}
+	tables.IKafkaOffsetTable = openKafkaOffsetTable(mustCreateCollection(db, cfg.KafkaOffsetTable))
+	tables.IOrphanShardTable = openOrphanedShardTable(mustCreateCollection(db, cfg.OrphanShardTable))
+	return tables, nil
 }
 
 func mustCreateCollection(db *mongo.Database, collName string) *mongo.Collection {
@@ -69,5 +63,5 @@ func mustCreateCollection(db *mongo.Database, collName string) *mongo.Collection
 	if err == nil || strings.Contains(err.Error(), "already exists") {
 		return db.Collection(collName)
 	}
-	panic(fmt.Sprintf("create collection error: %v", err))
+	panic("create collection error: " + err.Error())
 }

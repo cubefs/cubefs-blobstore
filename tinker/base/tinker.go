@@ -14,7 +14,9 @@
 
 package base
 
-import "github.com/cubefs/blobstore/common/counter"
+import (
+	"github.com/cubefs/blobstore/common/counter"
+)
 
 // IBaseMgr define the base interface used for delete and repair manager
 type IBaseMgr interface {

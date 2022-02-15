@@ -25,6 +25,7 @@ import (
 
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/trace"
+	"github.com/cubefs/blobstore/tinker/db"
 )
 
 // MinConsumeWaitTime default min consume wait time
@@ -58,7 +59,7 @@ type TopicConsumer struct {
 }
 
 // NewTopicConsumer returns topic consumer
-func NewTopicConsumer(cfg *KafkaConfig, offAccessor IOffsetAccessor) (IConsumer, error) {
+func NewTopicConsumer(cfg *KafkaConfig, offAccessor db.IKafkaOffsetTable) (IConsumer, error) {
 	consumers, err := NewKafkaPartitionConsumers(cfg, offAccessor)
 	if err != nil {
 		return nil, err
@@ -98,11 +99,11 @@ type PartitionConsumer struct {
 	consumeInfo ConsumeInfo
 
 	// consume offset persist
-	offset IOffsetAccessor
+	offset db.IKafkaOffsetTable
 }
 
 // NewKafkaPartitionConsumers returns kafka partition consumers
-func NewKafkaPartitionConsumers(cfg *KafkaConfig, offAccessor IOffsetAccessor) ([]IConsumer, error) {
+func NewKafkaPartitionConsumers(cfg *KafkaConfig, offAccessor db.IKafkaOffsetTable) ([]IConsumer, error) {
 	if len(cfg.Partitions) == 0 {
 		return nil, errors.New("empty partition id")
 	}
@@ -124,7 +125,7 @@ func NewKafkaPartitionConsumers(cfg *KafkaConfig, offAccessor IOffsetAccessor) (
 	return consumers, nil
 }
 
-func newKafkaPartitionConsumer(consumer sarama.Consumer, topic string, ptID int32, offset IOffsetAccessor) (*PartitionConsumer, error) {
+func newKafkaPartitionConsumer(consumer sarama.Consumer, topic string, ptID int32, offset db.IKafkaOffsetTable) (*PartitionConsumer, error) {
 	kafkaConsumer := PartitionConsumer{
 		topic:  topic,
 		offset: offset,
@@ -202,7 +203,7 @@ func (c *PartitionConsumer) CommitOffset(ctx context.Context) error {
 	span := trace.SpanFromContextSafe(ctx)
 
 	span.Debugf("start commit offset: offset[%d], topic[%s], pid[%d]", c.consumeInfo.Offset, c.topic, c.ptID)
-	err := c.offset.Put(c.topic, c.ptID, c.consumeInfo.Offset)
+	err := c.offset.Set(c.topic, c.ptID, c.consumeInfo.Offset)
 	if err != nil {
 		span.Errorf("commit offset failed: [%+v]", err)
 		return err

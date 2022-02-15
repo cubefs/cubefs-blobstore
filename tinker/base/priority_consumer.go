@@ -20,6 +20,8 @@ import (
 	"sort"
 
 	"github.com/Shopify/sarama"
+
+	"github.com/cubefs/blobstore/tinker/db"
 )
 
 type topicPriority struct {
@@ -39,7 +41,7 @@ type priorityConsumer struct {
 }
 
 // NewPriorityConsumer return priority consumer
-func NewPriorityConsumer(cfgs []PriorityConsumerConfig, offAccessor IOffsetAccessor) (IConsumer, error) {
+func NewPriorityConsumer(cfgs []PriorityConsumerConfig, offAccessor db.IKafkaOffsetTable) (IConsumer, error) {
 	multiConsumer := priorityConsumer{}
 	multiConsumer.topicConsumers = make(map[string]IConsumer, len(cfgs))
 	multiConsumer.sortedTopicPriority = make([]topicPriority, 0)

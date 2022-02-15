@@ -22,29 +22,27 @@ import (
 	"github.com/cubefs/blobstore/common/proto"
 )
 
-// IOrphanedShardTbl define the interface of save orphaned shard record
-type IOrphanedShardTbl interface {
-	SaveOrphanedShard(ctx context.Context, info ShardInfo) error
+// IOrphanShardTable define the interface to save orphan shard record.
+type IOrphanShardTable interface {
+	Save(shard OrphanShard) error
 }
 
-// OrphanedShardTbl orphaned shard table
-type OrphanedShardTbl struct {
-	coll *mongo.Collection
-}
-
-// ShardInfo shard info
-type ShardInfo struct {
+// OrphanShard orphan shard identification.
+type OrphanShard struct {
 	ClusterID proto.ClusterID `bson:"cluster_id"`
 	Vid       proto.Vid       `bson:"vid"`
 	Bid       proto.BlobID    `bson:"bid"`
 }
 
-func openOrphanedShardTbl(coll *mongo.Collection) (IOrphanedShardTbl, error) {
-	return &OrphanedShardTbl{coll: coll}, nil
+type orphanShardTable struct {
+	coll *mongo.Collection
 }
 
-// SaveOrphanedShard save orphaned shard info
-func (t *OrphanedShardTbl) SaveOrphanedShard(ctx context.Context, info ShardInfo) error {
-	_, err := t.coll.InsertOne(ctx, info)
+func openOrphanedShardTable(coll *mongo.Collection) IOrphanShardTable {
+	return &orphanShardTable{coll: coll}
+}
+
+func (t *orphanShardTable) Save(shard OrphanShard) error {
+	_, err := t.coll.InsertOne(context.Background(), shard)
 	return err
 }

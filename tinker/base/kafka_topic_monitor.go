@@ -23,12 +23,13 @@ import (
 
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/proto"
+	"github.com/cubefs/blobstore/tinker/db"
 	"github.com/cubefs/blobstore/util/log"
 )
 
 // KafkaTopicMonitor kafka monitor
 type KafkaTopicMonitor struct {
-	offsetAccessor   IOffsetAccessor
+	offsetAccessor   db.IKafkaOffsetTable
 	topic            string
 	partitions       []int32
 	monitor          *kafka.KafkaMonitor
@@ -36,7 +37,7 @@ type KafkaTopicMonitor struct {
 }
 
 // NewKafkaTopicMonitor returns kafka topic monitor
-func NewKafkaTopicMonitor(cfg *KafkaConfig, access IOffsetAccessor, monitorIntervalS int) (*KafkaTopicMonitor, error) {
+func NewKafkaTopicMonitor(cfg *KafkaConfig, access db.IKafkaOffsetTable, monitorIntervalS int) (*KafkaTopicMonitor, error) {
 	consumer, err := sarama.NewConsumer(cfg.BrokerList, defaultKafkaCfg())
 	if err != nil {
 		return nil, err

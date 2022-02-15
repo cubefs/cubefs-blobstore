@@ -132,11 +132,11 @@ func (cfg *Config) checkAndFix() (err error) {
 	if cfg.Database.Mongo.TimeoutMs <= 0 {
 		cfg.Database.Mongo.TimeoutMs = defaultMongoTimeoutMs
 	}
-	if cfg.Database.KafkaOffsetTblName == "" {
-		cfg.Database.KafkaOffsetTblName = "kafka_offset_tbl"
+	if cfg.Database.KafkaOffsetTable == "" {
+		cfg.Database.KafkaOffsetTable = "kafka_offset_tbl"
 	}
-	if cfg.Database.OrphanedShardTblName == "" {
-		cfg.Database.OrphanedShardTblName = "orphaned_shard_tbl"
+	if cfg.Database.OrphanShardTable == "" {
+		cfg.Database.OrphanShardTable = "orphaned_shard_tbl"
 	}
 	if cfg.Database.Mongo.WriteConcern == nil {
 		cfg.Database.Mongo.WriteConcern = &mongoutil.WriteConcernConfig{TimeoutMs: defaultMongoTimeoutMs, Majority: true}
@@ -205,7 +205,7 @@ type Service struct {
 	deleteMgr      base.IBaseMgr
 
 	volCache base.IVolumeCache
-	database *db.Database
+	database db.IDatabase
 }
 
 // NewService returns a tinker service
@@ -228,14 +228,12 @@ func NewService(cfg Config) (*Service, error) {
 	switchMgr := taskswitch.NewSwitchMgr(cmCli)
 	vc := NewVolumeCache(cmCli, cfg.VolumeCacheUpdateIntervalS)
 
-	offAccessor := base.NewMgoOffAccessor(database.KafkaOffsetTable)
-
-	shardRepairMgr, err := NewShardRepairMgr(&cfg.ShardRepair, vc, switchMgr, offAccessor, schedulerCli, database.OrphanedShardTable, workerCli)
+	shardRepairMgr, err := NewShardRepairMgr(&cfg.ShardRepair, vc, switchMgr, database, schedulerCli, database, workerCli)
 	if err != nil {
 		return nil, fmt.Errorf("new shard repair mgr: cfg[%+v], err[%w]", cfg.ShardRepair, err)
 	}
 
-	deleteMgr, err := NewDeleteMgr(&cfg.BlobDelete, vc, offAccessor, blobnodeCli, switchMgr)
+	deleteMgr, err := NewDeleteMgr(&cfg.BlobDelete, vc, database, blobnodeCli, switchMgr)
 	if err != nil {
 		return nil, fmt.Errorf("new blob delete mgr: cfg[%+v], err[%w]", cfg.BlobDelete, err)
 	}
@@ -255,7 +253,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("register: err[%w]", err)
 	}
 
-	err = service.runKafkaMonitor(offAccessor)
+	err = service.runKafkaMonitor(database)
 	if err != nil {
 		return nil, fmt.Errorf("run kafka monitor: err[%w]", err)
 	}
@@ -362,7 +360,7 @@ func (s *Service) LoadVolInfo() error {
 	return s.volCache.Load()
 }
 
-func (s *Service) runKafkaMonitor(access base.IOffsetAccessor) error {
+func (s *Service) runKafkaMonitor(access db.IKafkaOffsetTable) error {
 	// collect cfg
 	var topicCfgs []*base.KafkaConfig
 	topicCfgs = append(topicCfgs, &s.config.BlobDelete.NormalTopic)

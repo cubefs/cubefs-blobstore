@@ -92,7 +92,7 @@ type ShardRepairMgr struct {
 	workerCli      client.IWorker
 	workerSelector selector.Selector
 
-	orphanedShardTable db.IOrphanedShardTbl
+	orphanShardTable db.IOrphanShardTable
 
 	repairSuccessCounter    prometheus.Counter
 	repairSuccessCounterMin counter.CounterByMin
@@ -108,9 +108,9 @@ func NewShardRepairMgr(
 	cfg *ShardRepairConfig,
 	vc base.IVolumeCache,
 	switchMgr *taskswitch.SwitchMgr,
-	offAccessor base.IOffsetAccessor,
+	offAccessor db.IKafkaOffsetTable,
 	schedulerCli client.IScheduler,
-	orphanedShardTbl db.IOrphanedShardTbl,
+	orphanShardTbl db.IOrphanShardTable,
 	workerCli client.IWorker,
 ) (*ShardRepairMgr, error) {
 	priorConsumers, err := base.NewPriorityConsumer(cfg.PriorityTopics, offAccessor)
@@ -163,7 +163,7 @@ func NewShardRepairMgr(
 		normalHandleBatchCnt: cfg.NormalHandleBatchCnt,
 		failHandlerBatchCnt:  cfg.FailHandleBatchCnt,
 
-		orphanedShardTable: orphanedShardTbl,
+		orphanShardTable: orphanShardTbl,
 
 		repairSuccessCounter: base.NewCounter(cfg.ClusterID, ShardRepair, base.KindSuccess),
 		repairFailedCounter:  base.NewCounter(cfg.ClusterID, ShardRepair, base.KindFailed),
@@ -384,24 +384,24 @@ func (s *ShardRepairMgr) repairShard(ctx context.Context, volInfo *client.VolInf
 	}
 
 	if isOrphanShard(err) {
-		s.saveOrphanedShard(ctx, repairMsg)
+		s.saveOrphanShard(ctx, repairMsg)
 	}
 
 	return err
 }
 
-func (s *ShardRepairMgr) saveOrphanedShard(ctx context.Context, repairMsg proto.ShardRepairMsg) {
+func (s *ShardRepairMgr) saveOrphanShard(ctx context.Context, repairMsg proto.ShardRepairMsg) {
 	span := trace.SpanFromContextSafe(ctx)
 
-	shardInfo := db.ShardInfo{
+	shard := db.OrphanShard{
 		ClusterID: repairMsg.ClusterID,
 		Vid:       repairMsg.Vid,
 		Bid:       repairMsg.Bid,
 	}
-	span.Infof("save orphaned shard: info[%+v]", shardInfo)
+	span.Infof("save orphan shard: [%+v]", shard)
 
 	base.LoopExecUntilSuccess(ctx, "save orphaned shard", func() error {
-		return s.orphanedShardTable.SaveOrphanedShard(ctx, shardInfo)
+		return s.orphanShardTable.Save(shard)
 	})
 }
 

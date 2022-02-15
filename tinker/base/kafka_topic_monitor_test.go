@@ -52,9 +52,7 @@ func TestNewKafkaTopicMonitor(t *testing.T) {
 	}
 
 	tbl := &mockKafkaOffsetTable{}
-	a := mgoOffsetAccessor{offsetTbl: tbl}
-
-	monitor, err := NewKafkaTopicMonitor(cfg, a, 0)
+	monitor, err := NewKafkaTopicMonitor(cfg, tbl, 0)
 	go func() {
 		monitor.Run()
 	}()
@@ -62,6 +60,6 @@ func TestNewKafkaTopicMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg.BrokerList = []string{}
-	monitor, err = NewKafkaTopicMonitor(cfg, a, 0)
+	monitor, err = NewKafkaTopicMonitor(cfg, tbl, 0)
 	require.Error(t, err)
 }
