@@ -25,48 +25,46 @@ import (
 	"github.com/cubefs/blobstore/tinker/client"
 )
 
-func TestVolCache(t *testing.T) {
-	ctr := gomock.NewController(t)
-	cmClient := NewMockClusterMgrAPI(ctr)
-	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
+func TestVolumeCache(t *testing.T) {
+	cmClient := NewMockClusterMgrAPI(gomock.NewController(t))
+	cmClient.EXPECT().ListVolume(any, any, any).Times(2).DoAndReturn(
 		func(_ context.Context, marker proto.Vid, _ int) ([]client.VolInfo, proto.Vid, error) {
 			if marker == defaultMarker {
 				return []client.VolInfo{{Vid: 4}}, proto.Vid(10), nil
 			}
 			return []client.VolInfo{{Vid: 9}}, defaultMarker, nil
-		})
-	cmClient.EXPECT().GetVolInfo(gomock.Any(), gomock.Any()).DoAndReturn(
+		},
+	)
+	cmClient.EXPECT().GetVolInfo(any, any).DoAndReturn(
 		func(_ context.Context, vid proto.Vid) (client.VolInfo, error) {
 			return client.VolInfo{Vid: vid}, nil
-		})
+		},
+	)
 
-	volCache := NewVolCache(cmClient, -1)
+	volCache := NewVolumeCache(cmClient, 10)
 	err := volCache.Load()
 	require.NoError(t, err)
 
 	// no cache will update
 	_, err = volCache.Get(1)
 	require.NoError(t, err)
-
-	// return catch
+	// return cache
 	_, err = volCache.Get(1)
 	require.NoError(t, err)
 
-	// // ErrUpdateNotLongAgo
-	// _, err = volCache.Get(1)
-	// require.ErrorIs(t, ErrUpdateNotLongAgo, err)
+	// update ErrFrequentlyUpdate
+	_, err = volCache.Update(1)
+	require.ErrorIs(t, err, ErrFrequentlyUpdate)
 
 	// update failed
-	cmClient.EXPECT().GetVolInfo(gomock.Any(), gomock.Any()).Return(
-		client.VolInfo{}, errMock)
-	volCache = NewVolCache(cmClient, -1)
+	cmClient.EXPECT().GetVolInfo(any, any).Return(client.VolInfo{}, errMock)
+	volCache = NewVolumeCache(cmClient, -1)
 	_, err = volCache.Get(1)
-	require.ErrorIs(t, errMock, err)
+	require.ErrorIs(t, err, errMock)
 
 	// list volume failed
-	cmClient.EXPECT().ListVolume(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(
-		nil, proto.Vid(0), errMock)
-	volCache = NewVolCache(cmClient, 60)
+	cmClient.EXPECT().ListVolume(any, any, any).AnyTimes().Return(nil, proto.Vid(0), errMock)
+	volCache = NewVolumeCache(cmClient, -1)
 	err = volCache.Load()
-	require.ErrorIs(t, errMock, err)
+	require.ErrorIs(t, err, errMock)
 }

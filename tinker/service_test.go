@@ -139,7 +139,7 @@ func TestConfigCheckAndFix(t *testing.T) {
 	cfg := &Config{}
 	err := cfg.checkAndFix()
 	require.NoError(t, err)
-	require.Equal(t, defaultUpdateDurationS, cfg.VolCacheUpdateDurationS)
+	require.Equal(t, defaultUpdateIntervalS, cfg.VolumeCacheUpdateIntervalS)
 }
 
 func TestRegister(t *testing.T) {

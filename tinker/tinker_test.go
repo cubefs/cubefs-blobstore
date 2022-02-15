@@ -24,13 +24,17 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
+	"github.com/golang/mock/gomock"
 )
 
 const (
 	testTopic = "test_topic"
 )
 
-var errMock = errors.New("fake failed")
+var (
+	any     = gomock.Any()
+	errMock = errors.New("fake error")
+)
 
 type mockEncoder struct{}
 

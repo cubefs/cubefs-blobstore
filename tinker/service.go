@@ -75,7 +75,7 @@ func tearDown() {
 const (
 	defaultClientTimeoutMs          = 1000
 	defaultMongoTimeoutMs           = 3000
-	defaultUpdateDurationS          = 10
+	defaultUpdateIntervalS          = 10
 	defaultTaskPoolSize             = 10
 	defaultHandleBatchCnt           = 100
 	defaultFailMsgConsumeIntervalMs = 10000
@@ -104,12 +104,12 @@ type Config struct {
 	Blobnode   blobnode.Config   `json:"blobnode"`
 	Scheduler  scheduler.Config  `json:"scheduler"`
 
-	VolCacheUpdateDurationS int `json:"vol_cache_update_duration_s"`
+	VolumeCacheUpdateIntervalS int `json:"volume_cache_update_interval_s"`
 }
 
 func (cfg *Config) checkAndFix() (err error) {
-	if cfg.VolCacheUpdateDurationS <= 0 {
-		cfg.VolCacheUpdateDurationS = defaultUpdateDurationS
+	if cfg.VolumeCacheUpdateIntervalS <= 0 {
+		cfg.VolumeCacheUpdateIntervalS = defaultUpdateIntervalS
 	}
 
 	cfg.ShardRepair.ClusterID = cfg.ClusterID
@@ -226,7 +226,7 @@ func NewService(cfg Config) (*Service, error) {
 	workerCli := client.NewWorkerClient(&cfg.Worker)
 
 	switchMgr := taskswitch.NewSwitchMgr(cmCli)
-	vc := NewVolCache(cmCli, cfg.VolCacheUpdateDurationS)
+	vc := NewVolumeCache(cmCli, cfg.VolumeCacheUpdateIntervalS)
 
 	offAccessor := base.NewMgoOffAccessor(database.KafkaOffsetTable)
 
