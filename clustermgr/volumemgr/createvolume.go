@@ -58,6 +58,7 @@ func (v *VolumeMgr) finishLastCreateJob(ctx context.Context) error {
 		if rec.CreateByNodeID == v.raftServer.Status().Id {
 			volumeRecs = append(volumeRecs, rec)
 		}
+
 		return nil
 	})
 	for _, rec := range volumeRecs {
@@ -94,6 +95,7 @@ func (v *VolumeMgr) finishLastCreateJob(ctx context.Context) error {
 		if err != nil {
 			return errors.Info(err, "alloc chunk for volume unit failed").Detail(err)
 		}
+
 		data, err = createVolCtx.Encode()
 		if err != nil {
 			return errors.Info(err, "encode create volume context failed").Detail(err)
@@ -187,6 +189,11 @@ func (v *VolumeMgr) applyInitCreateVolume(ctx context.Context, vol *volume) erro
 		return errors.Info(ErrInvalidVolume, "initial create volume is invalid, vid[%d], units[%qv]", vol.vid, vol.vUnits).Detail(ErrInvalidVolume)
 	}
 
+	// volume already create finish, direct return
+	if v.all.getVol(vol.vid) != nil {
+		return nil
+	}
+
 	unitRecords := volumeUnitsToVolumeUnitRecords(vol.vUnits)
 	volumeRecord := vol.ToRecord()
 	if err := v.transitedTbl.PutVolumeAndVolumeUnit(volumeRecord, unitRecords); err != nil {
@@ -221,9 +228,11 @@ func (v *VolumeMgr) applyCreateVolume(ctx context.Context, vol *volume) error {
 	volumeRecord := vol.ToRecord()
 	// delete transited table firstly, put volume and volume units secondly.
 	// it's idempotent when wal log replay
-	v.transitedTbl.DeleteVolumeAndUnits(volumeRecord, unitRecords)
+	if err := v.transitedTbl.DeleteVolumeAndUnits(volumeRecord, unitRecords); err != nil {
+		return errors.Info(err, fmt.Sprintf("delete volume [%+v] and  units[%+v] from transited table failed", volumeRecord, unitRecords)).Detail(err)
+	}
 	if err := v.volumeTbl.PutVolumeAndVolumeUnit([]*volumedb.VolumeRecord{volumeRecord}, [][]*volumedb.VolumeUnitRecord{unitRecords}); err != nil {
-		return errors.Info(err, fmt.Sprintf("put volume[%v] and volume unit[%+v] into volume table failed", volumeRecord, unitRecords)).Detail(err)
+		return errors.Info(err, fmt.Sprintf("put volume[%+v] and volume unit[%+v] into volume table failed", volumeRecord, unitRecords)).Detail(err)
 	}
 	v.all.putVol(vol)
 
