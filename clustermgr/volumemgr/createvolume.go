@@ -58,7 +58,6 @@ func (v *VolumeMgr) finishLastCreateJob(ctx context.Context) error {
 		if rec.CreateByNodeID == v.raftServer.Status().Id {
 			volumeRecs = append(volumeRecs, rec)
 		}
-
 		return nil
 	})
 	for _, rec := range volumeRecs {

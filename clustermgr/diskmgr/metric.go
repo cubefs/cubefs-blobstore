@@ -42,11 +42,21 @@ var (
 		},
 		[]string{"region", "cluster", "idc", "item", "is_leader"},
 	)
+	chunkStatInfoMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "blobstore",
+			Subsystem: "clusterMgr",
+			Name:      "chunk_stat_info",
+			Help:      "cluster chunk info",
+		},
+		[]string{"region", "cluster", "idc", "item", "is_leader"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(spaceStatInfoMetric)
 	prometheus.MustRegister(diskStatInfoMetric)
+	prometheus.MustRegister(chunkStatInfoMetric)
 }
 
 func (d *DiskMgr) Report(ctx context.Context, region string, clusterID proto.ClusterID, isLeader string) {
@@ -64,18 +74,25 @@ func (d *DiskMgr) Report(ctx context.Context, region string, clusterID proto.Clu
 		vec.WithLabelValues(region, clusterID.ToString(), fieldName, isLeader).Set(float64(reflectVals.FieldByName(fieldName).Interface().(int64)))
 	}
 
-	vec = diskStatInfoMetric
-	vec.Reset()
+	vecDisk := diskStatInfoMetric
+	vecDisk.Reset()
+	vecChunk := chunkStatInfoMetric
+	vecChunk.Reset()
 	for _, diskStatInfo := range spaceStatInfo.DisksStatInfos {
 		reflectTyes = reflect.TypeOf(diskStatInfo)
 		reflectVals = reflect.ValueOf(diskStatInfo)
 		for i := 0; i < reflectTyes.NumField(); i++ {
 			fieldName := reflectTyes.Field(i).Name
 			kind := reflectTyes.Field(i).Type.Kind()
-			if kind != reflect.Int {
+
+			switch kind {
+			case reflect.Int:
+				vecDisk.WithLabelValues(region, clusterID.ToString(), diskStatInfo.IDC, fieldName, isLeader).Set(float64(reflectVals.FieldByName(fieldName).Int()))
+			case reflect.Int64:
+				vecChunk.WithLabelValues(region, clusterID.ToString(), diskStatInfo.IDC, fieldName, isLeader).Set(float64(reflectVals.FieldByName(fieldName).Interface().(int64)))
+			default:
 				continue
 			}
-			vec.WithLabelValues(region, clusterID.ToString(), diskStatInfo.IDC, fieldName, isLeader).Set(float64(reflectVals.FieldByName(fieldName).Int()))
 		}
 	}
 }

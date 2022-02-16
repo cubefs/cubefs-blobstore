@@ -572,7 +572,7 @@ func (v *VolumeMgr) applyAllocVolume(ctx context.Context, vid proto.Vid, host st
 	allocatableScoreThreshold := volume.getScoreThreshold()
 	// when propose data, volume status may change , check to ensure volume can alloc,
 	if !volume.canAlloc(v.FreezeThreshold, allocatableScoreThreshold) {
-		span.Debugf("volume can not alloc,vid is %d", vid)
+		span.Debugf("volume can not alloc,volume info is %+v", volume.volInfoBase)
 		volume.lock.Unlock()
 		return
 	}
