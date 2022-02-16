@@ -30,7 +30,6 @@ import (
 	"github.com/cubefs/blobstore/api/blobnode"
 	"github.com/cubefs/blobstore/common/ec"
 	errcode "github.com/cubefs/blobstore/common/errors"
-	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
 	"github.com/cubefs/blobstore/util/errors"
@@ -114,9 +113,9 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 		return nil, err
 	}
 
-	putTime := new(times)
+	putTime := new(timeReadWrite)
 	defer func() {
-		span.AppendRPCTrackLog(putTime.PutLogs())
+		span.AppendRPCTrackLog([]string{putTime.String()})
 	}()
 
 	for _, blob := range location.Spread() {
@@ -127,8 +126,7 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 
 		startRead := time.Now()
 		n, err := io.ReadFull(limitReader, readBuff)
-		putTime.AddPutN(n)
-		putTime.AddPutRead(startRead)
+		putTime.IncR(time.Since(startRead))
 		if err != nil && err != io.EOF {
 			span.Infof("read blob data failed want:%d read:%d %s", bsize, n, err.Error())
 			return nil, errcode.ErrAccessReadRequestBody
@@ -153,11 +151,13 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 		if err = h.encoder[selectedCodeMode].Encode(shards); err != nil {
 			return nil, err
 		}
-		span.Debugf("to write blob(%d %d %d) ", clusterID, vid, bid)
+
+		blobident := blobIdent{clusterID, vid, bid}
+		span.Debug("to write", blobident)
 
 		startWrite := time.Now()
-		badIdx, err := h.writeToBlobnodesWithHystrix(ctx, clusterID, vid, bid, shards)
-		putTime.AddPutWrite(startWrite)
+		badIdx, err := h.writeToBlobnodesWithHystrix(ctx, blobident, shards)
+		putTime.IncW(time.Since(startWrite))
 		if err != nil {
 			return nil, errors.Info(err, "write to blobnode failed")
 		}
@@ -171,10 +171,9 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 }
 
 func (h *Handler) writeToBlobnodesWithHystrix(ctx context.Context,
-	clusterID proto.ClusterID, vid proto.Vid, bid proto.BlobID,
-	shards [][]byte) (badIdx []uint8, err error) {
+	blob blobIdent, shards [][]byte) (badIdx []uint8, err error) {
 	err = hystrix.Do(rwCommand, func() error {
-		badIdx, err = h.writeToBlobnodes(ctx, clusterID, vid, bid, shards)
+		badIdx, err = h.writeToBlobnodes(ctx, blob, shards)
 		return err
 	}, nil)
 	return
@@ -182,9 +181,9 @@ func (h *Handler) writeToBlobnodesWithHystrix(ctx context.Context,
 
 // writeToBlobnodes write shards to blobnode
 func (h *Handler) writeToBlobnodes(ctx context.Context,
-	clusterID proto.ClusterID, vid proto.Vid, bid proto.BlobID,
-	shards [][]byte) (badIdx []uint8, err error) {
+	blob blobIdent, shards [][]byte) (badIdx []uint8, err error) {
 	span := trace.SpanFromContextSafe(ctx)
+	clusterID, vid, bid := blob.cid, blob.vid, blob.bid
 
 	volume, err := h.getVolume(ctx, clusterID, vid, true)
 	if err != nil {
@@ -332,9 +331,8 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 				goto RETRY
 			}
 			if writeErr != nil {
-				span.Warnf("write blob(%d %d %d) on blobnode(%d %d %s) ecidx(%02d): %s",
-					clusterID, vid, bid,
-					args.Vuid, args.DiskID, hostInfo.Host, index, errors.Detail(writeErr))
+				span.Warnf("write %s on blobnode(%d %d %s) ecidx(%02d): %s",
+					blob.String(), args.Vuid, args.DiskID, hostInfo.Host, index, errors.Detail(writeErr))
 				return
 			}
 
@@ -395,13 +393,12 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 
 		span.Debugf("tolerate-multi-az-write (az-fine:%d az-down:%d az-all:%d)", allFine, allDown, tactic.AZCount)
 		if allFine == tactic.AZCount-1 && allDown == 1 {
-			span.Warnf("tolerate-multi-az-write (az-fine:%d az-down:%d az-all:%d) of blob(%d %d %d)",
-				allFine, allDown, tactic.AZCount, clusterID, vid, bid)
+			span.Warnf("tolerate-multi-az-write (az-fine:%d az-down:%d az-all:%d) of %s",
+				allFine, allDown, tactic.AZCount, blob.String())
 			return
 		}
 	}
 
-	err = fmt.Errorf("quorum write failed (%d < %d) of blob(%d %d %d)",
-		writtenNum, putQuorum, clusterID, vid, bid)
+	err = fmt.Errorf("quorum write failed (%d < %d) of %s", writtenNum, putQuorum, blob.String())
 	return
 }

@@ -121,9 +121,9 @@ func (h *Handler) Get(ctx context.Context, w io.Writer, location access.Location
 	}
 
 	return func() error {
-		getTime := new(times)
+		getTime := new(timeReadWrite)
 		defer func() {
-			span.AppendRPCTrackLog(getTime.GetLogs())
+			span.AppendRPCTrackLog([]string{getTime.String()})
 		}()
 
 		// try to read data shard only,
@@ -248,7 +248,7 @@ func (h *Handler) Get(ctx context.Context, w io.Writer, location access.Location
 				toReadSize -= toRead
 			}
 
-			getTime.AddGetWrite(startWrite)
+			getTime.IncW(time.Since(startWrite))
 
 			for _, buf := range line.shards {
 				h.memPool.Put(buf)
@@ -267,7 +267,7 @@ func (h *Handler) Get(ctx context.Context, w io.Writer, location access.Location
 // 1. try to min-read shards bytes
 // 2. if failed try to read next shard to reconstruct
 // 3. write the the right offset bytes to writer
-func (h *Handler) readOneBlob(ctx context.Context, getTime *times,
+func (h *Handler) readOneBlob(ctx context.Context, getTime *timeReadWrite,
 	serviceController controller.ServiceController,
 	clusterID proto.ClusterID, vid proto.Vid, codeMode codemode.CodeMode,
 	blob blobGetArgs, sortedVuids []sortedVuid, shards [][]byte) error {
@@ -340,7 +340,6 @@ func (h *Handler) readOneBlob(ctx context.Context, getTime *times,
 	}
 
 	startRead := time.Now()
-	getTime.AddGetN(int(blob.ReadSize))
 	reconstructed := false
 	for shard := range shardPipe {
 		// swap shard buffer
@@ -406,7 +405,7 @@ func (h *Handler) readOneBlob(ctx context.Context, getTime *times,
 		}
 		nextChan <- struct{}{}
 	}
-	getTime.AddGetRead(startRead)
+	getTime.IncR(time.Since(startRead))
 
 	// release buffer of delayed shards
 	go func() {
@@ -482,7 +481,7 @@ func (h *Handler) readOneShard(ctx context.Context, serviceController controller
 	return shardResult
 }
 
-func (h *Handler) getDataShardOnly(ctx context.Context, getTime *times,
+func (h *Handler) getDataShardOnly(ctx context.Context, getTime *timeReadWrite,
 	w io.Writer, serviceController controller.ServiceController,
 	clusterID proto.ClusterID, blob blobGetArgs) error {
 	span := trace.SpanFromContextSafe(ctx)
@@ -508,8 +507,6 @@ func (h *Handler) getDataShardOnly(ctx context.Context, getTime *times,
 	shardOffset := int(blob.Offset) % shardSize
 
 	startRead := time.Now()
-	getTime.AddGetN(int(blob.ReadSize))
-
 	remainSize := blob.ReadSize
 	bufOffset := 0
 	for i, shard := range blobVolume.Units[firstShardIdx:tactic.N] {
@@ -550,7 +547,7 @@ func (h *Handler) getDataShardOnly(ctx context.Context, getTime *times,
 		remainSize -= toReadSize
 		bufOffset += int(toReadSize)
 	}
-	getTime.AddGetRead(startRead)
+	getTime.IncR(time.Since(startRead))
 
 	if remainSize > 0 {
 		return fmt.Errorf("no enough data to read %d", remainSize)
@@ -558,10 +555,10 @@ func (h *Handler) getDataShardOnly(ctx context.Context, getTime *times,
 
 	startWrite := time.Now()
 	if _, err := w.Write(buffer.DataBuf[:int(blob.ReadSize)]); err != nil {
-		getTime.AddGetWrite(startWrite)
+		getTime.IncW(time.Since(startWrite))
 		return errors.Info(err, "write to response")
 	}
-	getTime.AddGetWrite(startWrite)
+	getTime.IncW(time.Since(startWrite))
 
 	return nil
 }

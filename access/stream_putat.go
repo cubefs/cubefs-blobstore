@@ -64,15 +64,14 @@ func (h *Handler) PutAt(ctx context.Context, rc io.Reader,
 		return err
 	}
 
-	putTime := new(times)
+	putTime := new(timeReadWrite)
 	defer func() {
-		span.AppendRPCTrackLog(putTime.PutLogs())
+		span.AppendRPCTrackLog([]string{putTime.String()})
 	}()
 
 	startRead := time.Now()
 	n, err := io.ReadFull(rc, buffer.DataBuf)
-	putTime.AddPutN(n)
-	putTime.AddPutRead(startRead)
+	putTime.IncR(time.Since(startRead))
 	if err != nil && err != io.EOF {
 		span.Info("read blob data from request body", err)
 		return errcode.ErrAccessReadRequestBody
@@ -85,11 +84,13 @@ func (h *Handler) PutAt(ctx context.Context, rc io.Reader,
 	if err = h.encoder[volume.CodeMode].Encode(shards); err != nil {
 		return err
 	}
-	span.Debugf("to write blob(%d %d %d) ", clusterID, vid, bid)
+
+	blobident := blobIdent{clusterID, vid, bid}
+	span.Debug("to write", blobident)
 
 	startWrite := time.Now()
-	badIdx, err := h.writeToBlobnodesWithHystrix(ctx, clusterID, vid, bid, shards)
-	putTime.AddPutWrite(startWrite)
+	badIdx, err := h.writeToBlobnodesWithHystrix(ctx, blobident, shards)
+	putTime.IncW(time.Since(startWrite))
 	if err != nil {
 		return err
 	}

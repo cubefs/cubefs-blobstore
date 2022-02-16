@@ -17,6 +17,7 @@ package access
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -141,6 +142,16 @@ type discardVid struct {
 	cid      proto.ClusterID
 	codeMode codemode.CodeMode
 	vid      proto.Vid
+}
+
+type blobIdent struct {
+	cid proto.ClusterID
+	vid proto.Vid
+	bid proto.BlobID
+}
+
+func (id *blobIdent) String() string {
+	return fmt.Sprintf("blob(%d %d %d)", id.cid, id.vid, id.bid)
 }
 
 // Handler stream handler
@@ -440,7 +451,7 @@ func minU64(a, b uint64) uint64 {
 
 func errorTimeout(err error) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "timeout") || strings.Contains(msg, "Timeout")
+	return strings.Contains(msg, "Timeout") || strings.Contains(msg, "timeout")
 }
 
 func errorConnectionRefused(err error) bool {

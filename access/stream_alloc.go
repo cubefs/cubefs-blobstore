@@ -114,7 +114,7 @@ func (h *Handler) allocFromAllocator(ctx context.Context, codeMode codemode.Code
 	var allocRets []allocator.AllocRet
 	var allocHost string
 	hostsSet := make(map[string]struct{}, 1)
-	err := retry.ExponentialBackoff(h.AllocRetryTimes, uint32(h.AllocRetryIntervalMS)).On(func() error {
+	if err := retry.ExponentialBackoff(h.AllocRetryTimes, uint32(h.AllocRetryIntervalMS)).On(func() error {
 		serviceController, err := h.clusterController.GetServiceController(clusterID)
 		if err != nil {
 			span.Warn(err)
@@ -164,8 +164,7 @@ func (h *Handler) allocFromAllocator(ctx context.Context, codeMode codemode.Code
 
 		allocHost = host
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		if err != errAllocatePunishedVolume {
 			reportUnhealth(clusterID, "allocate", "-", "-", "failed")
 			return 0, nil, err

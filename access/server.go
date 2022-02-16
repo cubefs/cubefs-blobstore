@@ -140,16 +140,14 @@ func (s *Service) RegisterService() {
 
 // RegisterStatus register status handler to profile
 func (s *Service) RegisterStatus() {
-	profile.HandleFunc(http.MethodGet, "/access/status", func(ctx *rpc.Context) {
+	profile.HandleFunc(http.MethodGet, "/access/status", func(c *rpc.Context) {
 		status := s.limiter.Status()
 		data, err := json.MarshalIndent(status, "", "    ")
 		if err != nil {
-			ctx.Writer.Write([]byte(err.Error()))
+			c.RespondError(err)
 			return
 		}
-		ctx.Writer.Header().Set(rpc.HeaderContentType, rpc.MIMEJSON)
-		ctx.Writer.Header().Set(rpc.HeaderContentLength, strconv.Itoa(len(data)))
-		ctx.Writer.Write(data)
+		c.RespondWith(http.StatusOK, rpc.MIMEJSON, data)
 	})
 }
 
