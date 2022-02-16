@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -37,7 +36,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cubefs/blobstore/api/access"
-	"github.com/cubefs/blobstore/common/crc32block"
 	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
@@ -104,238 +102,22 @@ func init() {
 
 	dataCache = &dataCacheT{}
 	dataCache.clean()
-	mockServer = httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if req.URL.Path == "/v1/health/service/access" {
-				w.WriteHeader(http.StatusOK)
-				b, _ := json.Marshal(hostsApply)
-				w.Write(b)
 
-			} else if req.URL.Path == "/put" {
-				w.Header().Set(rpc.HeaderAckCrcEncoded, "1")
+	rpc.RegisterArgsParser(&access.PutArgs{}, "json")
+	rpc.RegisterArgsParser(&access.PutAtArgs{}, "json")
 
-				// /put?size=1023&hashes=0
-				putSize := req.URL.Query().Get("size")
-				// just for testing timeout
-				if strings.HasPrefix(putSize, "-") {
-					time.Sleep(30 * time.Second)
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-
-				size := req.Header.Get("Content-Length")
-				l, _ := strconv.Atoi(size)
-
-				w.WriteHeader(http.StatusOK)
-
-				decoder := crc32block.NewBodyDecoder(req.Body)
-				defer decoder.Close()
-				buf := make([]byte, decoder.CodeSize(int64(l)))
-				io.ReadFull(decoder, buf)
-				dataCache.put(0, buf)
-
-				hashesStr := req.URL.Query().Get("hashes")
-				algsInt, _ := strconv.Atoi(hashesStr)
-				algs := access.HashAlgorithm(algsInt)
-
-				hashSumMap := algs.ToHashSumMap()
-				for alg := range hashSumMap {
-					hasher := alg.ToHasher()
-					hasher.Write(buf)
-					hashSumMap[alg] = hasher.Sum(nil)
-				}
-
-				loc := access.Location{Size: uint64(l)}
-				fillCrc(&loc)
-				resp := access.PutResp{
-					Location:   loc,
-					HashSumMap: hashSumMap,
-				}
-				b, _ := json.Marshal(resp)
-				w.Write(b)
-
-			} else if req.URL.Path == "/get" {
-				var args access.GetArgs
-				requestBody(req, &args)
-				if !verifyCrc(&args.Location) {
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-
-				w.Header().Set("Content-Length", strconv.Itoa(int(args.Location.Size)))
-				w.WriteHeader(http.StatusOK)
-				if buf := dataCache.get(0); len(buf) > 0 {
-					w.Write(buf)
-				} else {
-					for _, blob := range args.Location.Spread() {
-						w.Write(dataCache.get(blob.Bid))
-					}
-				}
-
-			} else if req.URL.Path == "/alloc" {
-				args := access.AllocArgs{}
-				requestBody(req, &args)
-
-				loc := access.Location{
-					ClusterID: 1,
-					Size:      args.Size,
-					BlobSize:  blobSize,
-					Blobs: []access.SliceInfo{
-						{
-							MinBid: proto.BlobID(mrand.Int()),
-							Vid:    proto.Vid(mrand.Int()),
-							Count:  uint32((args.Size + blobSize - 1) / blobSize),
-						},
-					},
-				}
-				// split to two blobs if large enough
-				if loc.Blobs[0].Count > 2 {
-					loc.Blobs[0].Count = 2
-					loc.Blobs = append(loc.Blobs, []access.SliceInfo{
-						{
-							MinBid: proto.BlobID(mrand.Int()),
-							Vid:    proto.Vid(mrand.Int()),
-							Count:  uint32((args.Size - 2*blobSize + blobSize - 1) / blobSize),
-						},
-					}...)
-				}
-
-				// alloc the rest parts
-				if args.AssignClusterID > 0 {
-					loc.Blobs = []access.SliceInfo{
-						{
-							MinBid: proto.BlobID(mrand.Int()),
-							Vid:    proto.Vid(mrand.Int()),
-							Count:  uint32((args.Size + blobSize - 1) / blobSize),
-						},
-					}
-				}
-
-				tokens := make([]string, 0, len(loc.Blobs)+1)
-
-				hasMultiBlobs := loc.Size >= uint64(loc.BlobSize)
-				lastSize := uint32(loc.Size % uint64(loc.BlobSize))
-				for idx, blob := range loc.Blobs {
-					// returns one token if size < blobsize
-					if hasMultiBlobs {
-						count := blob.Count
-						if idx == len(loc.Blobs)-1 && lastSize > 0 {
-							count--
-						}
-						tokens = append(tokens, uptoken.EncodeToken(uptoken.NewUploadToken(loc.ClusterID,
-							blob.Vid, blob.MinBid, count,
-							loc.BlobSize, 0, tokenAlloc[:])))
-					}
-
-					// token of the last blob
-					if idx == len(loc.Blobs)-1 && lastSize > 0 {
-						tokens = append(tokens, uptoken.EncodeToken(uptoken.NewUploadToken(loc.ClusterID,
-							blob.Vid, blob.MinBid+proto.BlobID(blob.Count)-1, 1,
-							lastSize, 0, tokenAlloc[:])))
-					}
-				}
-
-				fillCrc(&loc)
-				resp := access.AllocResp{
-					Location: loc,
-					Tokens:   tokens,
-				}
-
-				w.WriteHeader(http.StatusOK)
-				b, _ := json.Marshal(resp)
-				w.Write(b)
-
-			} else if req.URL.Path == "/putat" {
-				w.Header().Set(rpc.HeaderAckCrcEncoded, "1")
-
-				// /putat?clusterid=1&volumeid=1&blobid=1299313571767079875&size=1023&hashes=0&token=1111111
-				query := req.URL.Query()
-				bid, _ := strconv.Atoi(query.Get("blobid"))
-				if partRandBroken && bid%3 == 0 { // random broken
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-				cid, _ := strconv.Atoi(query.Get("clusterid"))
-				vid, _ := strconv.Atoi(query.Get("volumeid"))
-				sizeArg, _ := strconv.Atoi(query.Get("size"))
-				token := uptoken.DecodeToken(query.Get("token"))
-				if !token.IsValid(proto.ClusterID(cid), proto.Vid(vid), proto.BlobID(bid), uint32(sizeArg), tokenPutat[:]) {
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-
-				size := req.Header.Get("Content-Length")
-				l, _ := strconv.Atoi(size)
-
-				w.WriteHeader(http.StatusOK)
-
-				decoder := crc32block.NewBodyDecoder(req.Body)
-				defer decoder.Close()
-				blobBuf := make([]byte, decoder.CodeSize(int64(l)))
-				io.ReadFull(decoder, blobBuf)
-
-				hashesStr := query.Get("hashes")
-				algsInt, _ := strconv.Atoi(hashesStr)
-				algs := access.HashAlgorithm(algsInt)
-
-				hashSumMap := algs.ToHashSumMap()
-				for alg := range hashSumMap {
-					hasher := alg.ToHasher()
-					hasher.Write(blobBuf)
-					hashSumMap[alg] = hasher.Sum(nil)
-				}
-
-				dataCache.put(proto.BlobID(bid), blobBuf)
-				resp := access.PutAtResp{HashSumMap: hashSumMap}
-				b, _ := json.Marshal(resp)
-				w.Write(b)
-
-			} else if req.URL.Path == "/delete" {
-				args := access.DeleteArgs{}
-				requestBody(req, &args)
-				if !args.IsValid() {
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-				for _, loc := range args.Locations {
-					if !verifyCrc(&loc) {
-						w.WriteHeader(http.StatusBadRequest)
-						return
-					}
-				}
-
-				if len(args.Locations) > 0 && len(args.Locations)%2 == 0 {
-					locs := args.Locations[:]
-					b, _ := json.Marshal(access.DeleteResp{FailedLocations: locs})
-					w.Header().Set("Content-Type", "application/json")
-					w.Header().Set("Content-Length", strconv.Itoa(len(b)))
-					w.WriteHeader(http.StatusIMUsed)
-					w.Write(b)
-					return
-				}
-
-				b, _ := json.Marshal(access.DeleteResp{})
-				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("Content-Length", strconv.Itoa(len(b)))
-				w.WriteHeader(http.StatusOK)
-				w.Write(b)
-
-			} else if req.URL.Path == "/sign" {
-				args := access.SignArgs{}
-				requestBody(req, &args)
-				if err := signCrc(&args.Location, args.Locations); err != nil {
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-
-				b, _ := json.Marshal(access.SignResp{Location: args.Location})
-				w.WriteHeader(http.StatusOK)
-				w.Write(b)
-
-			} else {
-				w.WriteHeader(http.StatusOK)
-			}
-		}))
+	handler := rpc.New()
+	handler.Handle(http.MethodGet, "/v1/health/service/access", handleService)
+	handler.Handle(http.MethodPost, "/alloc", handleAlloc, rpc.OptArgsBody())
+	handler.Handle(http.MethodPut, "/put", handlePut, rpc.OptArgsQuery())
+	handler.Handle(http.MethodPut, "/putat", handlePutAt, rpc.OptArgsQuery())
+	handler.Handle(http.MethodPost, "/get", handleGet, rpc.OptArgsBody())
+	handler.Handle(http.MethodPost, "/delete", handleDelete, rpc.OptArgsBody())
+	handler.Handle(http.MethodPost, "/sign", handleSign, rpc.OptArgsBody())
+	handler.Router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mockServer = httptest.NewServer(handler)
 
 	u := strings.Split(mockServer.URL[7:], ":")
 	port, _ := strconv.Atoi(u[1])
@@ -366,12 +148,208 @@ func init() {
 	mrand.Seed(int64(time.Since(t)))
 }
 
-func requestBody(req *http.Request, val interface{}) {
-	l := req.Header.Get(rpc.HeaderContentLength)
-	size, _ := strconv.Atoi(l)
-	data := make([]byte, size)
-	io.ReadFull(req.Body, data)
-	json.Unmarshal(data, val)
+func handleService(c *rpc.Context) {
+	c.RespondJSON(hostsApply)
+}
+
+func handleAlloc(c *rpc.Context) {
+	args := new(access.AllocArgs)
+	if err := c.ParseArgs(args); err != nil {
+		c.RespondError(err)
+		return
+	}
+
+	loc := access.Location{
+		ClusterID: 1,
+		Size:      args.Size,
+		BlobSize:  blobSize,
+		Blobs: []access.SliceInfo{
+			{
+				MinBid: proto.BlobID(mrand.Int()),
+				Vid:    proto.Vid(mrand.Int()),
+				Count:  uint32((args.Size + blobSize - 1) / blobSize),
+			},
+		},
+	}
+	// split to two blobs if large enough
+	if loc.Blobs[0].Count > 2 {
+		loc.Blobs[0].Count = 2
+		loc.Blobs = append(loc.Blobs, []access.SliceInfo{
+			{
+				MinBid: proto.BlobID(mrand.Int()),
+				Vid:    proto.Vid(mrand.Int()),
+				Count:  uint32((args.Size - 2*blobSize + blobSize - 1) / blobSize),
+			},
+		}...)
+	}
+	// alloc the rest parts
+	if args.AssignClusterID > 0 {
+		loc.Blobs = []access.SliceInfo{
+			{
+				MinBid: proto.BlobID(mrand.Int()),
+				Vid:    proto.Vid(mrand.Int()),
+				Count:  uint32((args.Size + blobSize - 1) / blobSize),
+			},
+		}
+	}
+
+	tokens := make([]string, 0, len(loc.Blobs)+1)
+
+	hasMultiBlobs := loc.Size >= uint64(loc.BlobSize)
+	lastSize := uint32(loc.Size % uint64(loc.BlobSize))
+	for idx, blob := range loc.Blobs {
+		// returns one token if size < blobsize
+		if hasMultiBlobs {
+			count := blob.Count
+			if idx == len(loc.Blobs)-1 && lastSize > 0 {
+				count--
+			}
+			tokens = append(tokens, uptoken.EncodeToken(uptoken.NewUploadToken(loc.ClusterID,
+				blob.Vid, blob.MinBid, count,
+				loc.BlobSize, 0, tokenAlloc[:])))
+		}
+
+		// token of the last blob
+		if idx == len(loc.Blobs)-1 && lastSize > 0 {
+			tokens = append(tokens, uptoken.EncodeToken(uptoken.NewUploadToken(loc.ClusterID,
+				blob.Vid, blob.MinBid+proto.BlobID(blob.Count)-1, 1,
+				lastSize, 0, tokenAlloc[:])))
+		}
+	}
+
+	fillCrc(&loc)
+	c.RespondJSON(access.AllocResp{
+		Location: loc,
+		Tokens:   tokens,
+	})
+}
+
+func handlePut(c *rpc.Context) {
+	args := new(access.PutArgs)
+	if err := c.ParseArgs(args); err != nil {
+		c.RespondError(err)
+		return
+	}
+
+	// just for testing timeout
+	if args.Size < 0 {
+		time.Sleep(30 * time.Second)
+		c.RespondStatus(http.StatusForbidden)
+		return
+	}
+
+	buf := make([]byte, args.Size)
+	io.ReadFull(c.Request.Body, buf)
+	dataCache.put(0, buf)
+
+	hashSumMap := args.Hashes.ToHashSumMap()
+	for alg := range hashSumMap {
+		hasher := alg.ToHasher()
+		hasher.Write(buf)
+		hashSumMap[alg] = hasher.Sum(nil)
+	}
+
+	loc := access.Location{Size: uint64(args.Size)}
+	fillCrc(&loc)
+	c.RespondJSON(access.PutResp{
+		Location:   loc,
+		HashSumMap: hashSumMap,
+	})
+}
+
+func handlePutAt(c *rpc.Context) {
+	args := new(access.PutAtArgs)
+	if err := c.ParseArgs(args); err != nil {
+		c.RespondError(err)
+		return
+	}
+
+	if partRandBroken && args.Blobid%3 == 0 { // random broken
+		c.RespondStatus(http.StatusForbidden)
+		return
+	}
+
+	token := uptoken.DecodeToken(args.Token)
+	if !token.IsValid(args.ClusterID, args.Vid, args.Blobid, uint32(args.Size), tokenPutat[:]) {
+		c.RespondStatus(http.StatusForbidden)
+		return
+	}
+
+	blobBuf := make([]byte, args.Size)
+	io.ReadFull(c.Request.Body, blobBuf)
+
+	hashSumMap := args.Hashes.ToHashSumMap()
+	for alg := range hashSumMap {
+		hasher := alg.ToHasher()
+		hasher.Write(blobBuf)
+		hashSumMap[alg] = hasher.Sum(nil)
+	}
+
+	dataCache.put(args.Blobid, blobBuf)
+	c.RespondJSON(access.PutAtResp{HashSumMap: hashSumMap})
+}
+
+func handleGet(c *rpc.Context) {
+	args := new(access.GetArgs)
+	if err := c.ParseArgs(args); err != nil {
+		c.RespondError(err)
+		return
+	}
+
+	if !verifyCrc(&args.Location) {
+		c.RespondStatus(http.StatusForbidden)
+		return
+	}
+
+	c.Writer.Header().Set(rpc.HeaderContentLength, strconv.Itoa(int(args.ReadSize)))
+	c.RespondStatus(http.StatusOK)
+	if buf := dataCache.get(0); len(buf) > 0 {
+		c.Writer.Write(buf)
+	} else {
+		for _, blob := range args.Location.Spread() {
+			c.Writer.Write(dataCache.get(blob.Bid))
+		}
+	}
+}
+
+func handleDelete(c *rpc.Context) {
+	args := new(access.DeleteArgs)
+	if err := c.ParseArgs(args); err != nil {
+		c.RespondError(err)
+		return
+	}
+
+	if !args.IsValid() {
+		c.RespondStatus(http.StatusBadRequest)
+		return
+	}
+	for _, loc := range args.Locations {
+		if !verifyCrc(&loc) {
+			c.RespondStatus(http.StatusBadRequest)
+			return
+		}
+	}
+
+	if len(args.Locations) > 0 && len(args.Locations)%2 == 0 {
+		locs := args.Locations[:]
+		c.RespondStatusData(http.StatusIMUsed, access.DeleteResp{FailedLocations: locs})
+		return
+	}
+	c.RespondJSON(access.DeleteResp{})
+}
+
+func handleSign(c *rpc.Context) {
+	args := new(access.SignArgs)
+	if err := c.ParseArgs(args); err != nil {
+		c.RespondError(err)
+		return
+	}
+
+	if err := signCrc(&args.Location, args.Locations); err != nil {
+		c.RespondStatus(http.StatusForbidden)
+		return
+	}
+	c.RespondJSON(access.SignResp{Location: args.Location})
 }
 
 func calcCrc(loc *access.Location) (uint32, error) {
