@@ -309,20 +309,20 @@ func initMockData() {
 	for idx := range allocNodes {
 		allocNodes[idx] = clustermgr.ServiceNode{
 			ClusterID: 1,
-			Name:      AllocatorServiceName,
+			Name:      serviceAllocator,
 			Host:      fmt.Sprintf("allocator-%d", idx),
 			Idc:       idc,
 		}
 	}
 
 	dataNodes = make(map[string]clustermgr.ServiceInfo)
-	dataNodes[AllocatorServiceName] = clustermgr.ServiceInfo{
+	dataNodes[serviceAllocator] = clustermgr.ServiceInfo{
 		Nodes: allocNodes,
 	}
-	dataNodes[MQProxyServiceName] = clustermgr.ServiceInfo{
+	dataNodes[serviceMQProxy] = clustermgr.ServiceInfo{
 		Nodes: []clustermgr.ServiceNode{{
 			ClusterID: 1,
-			Name:      MQProxyServiceName,
+			Name:      serviceMQProxy,
 			Host:      "mqproxy-1",
 			Idc:       idc,
 		}},

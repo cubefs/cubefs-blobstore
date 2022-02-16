@@ -23,7 +23,6 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/golang/mock/gomock"
 
-	"github.com/cubefs/blobstore/access/controller"
 	bnapi "github.com/cubefs/blobstore/api/blobnode"
 	cmapi "github.com/cubefs/blobstore/api/clustermgr"
 	"github.com/cubefs/blobstore/common/codemode"
@@ -84,27 +83,27 @@ func init() {
 	dataVolumes[vid404] = cmapi.VolumeInfo{VolumeInfoBase: cmapi.VolumeInfoBase{Vid: vid404}}
 
 	dataNodes = make(map[string]cmapi.ServiceInfo)
-	dataNodes[controller.AllocatorServiceName] = cmapi.ServiceInfo{
+	dataNodes[proto.ServiceNameAllocator] = cmapi.ServiceInfo{
 		Nodes: []cmapi.ServiceNode{
 			{
 				ClusterID: 1,
-				Name:      controller.AllocatorServiceName,
+				Name:      proto.ServiceNameAllocator,
 				Host:      "allocator-1",
 				Idc:       idc,
 			},
 			{
 				ClusterID: 1,
-				Name:      controller.AllocatorServiceName,
+				Name:      proto.ServiceNameAllocator,
 				Host:      "allocator-2",
 				Idc:       idc,
 			},
 		},
 	}
-	dataNodes[controller.MQProxyServiceName] = cmapi.ServiceInfo{
+	dataNodes[proto.ServiceNameMQProxy] = cmapi.ServiceInfo{
 		Nodes: []cmapi.ServiceNode{
 			{
 				ClusterID: 1,
-				Name:      controller.MQProxyServiceName,
+				Name:      proto.ServiceNameMQProxy,
 				Host:      "mqproxy-1",
 				Idc:       idc,
 			},

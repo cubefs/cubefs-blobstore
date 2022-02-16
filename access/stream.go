@@ -40,19 +40,16 @@ import (
 	"github.com/cubefs/blobstore/util/retry"
 )
 
-var (
-	// AllocatorServiceName alias
-	AllocatorServiceName = controller.AllocatorServiceName
-	// MQProxyServiceName alias
-	MQProxyServiceName = controller.MQProxyServiceName
-)
-
 const (
 	defaultMaxObjectSize int64 = 5 * (1 << 30) // 5GB
 
 	// hystrix command define
 	allocCommand = "alloc"
 	rwCommand    = "rw"
+
+	// alias of service
+	serviceAllocator = proto.ServiceNameAllocator
+	serviceMQProxy   = proto.ServiceNameMQProxy
 )
 
 // StreamHandler stream http handler
@@ -330,7 +327,7 @@ func (h *Handler) sendRepairMsg(ctx context.Context,
 	}
 
 	if err := retry.Timed(3, 200).On(func() error {
-		host, err := serviceController.GetServiceHost(ctx, MQProxyServiceName)
+		host, err := serviceController.GetServiceHost(ctx, serviceMQProxy)
 		if err != nil {
 			span.Info(err)
 			return err
@@ -338,13 +335,13 @@ func (h *Handler) sendRepairMsg(ctx context.Context,
 		err = h.mqproxyClient.SendShardRepairMsg(ctx, host, repairArgs)
 		if err != nil {
 			span.Infof("send to %s repair message(%+v) %s", host, repairArgs, err.Error())
-			serviceController.PunishServiceWithThreshold(ctx, MQProxyServiceName, host, h.ServicePunishIntervalS)
-			reportUnhealth(clusterID, "punish", MQProxyServiceName, host, "failed")
+			serviceController.PunishServiceWithThreshold(ctx, serviceMQProxy, host, h.ServicePunishIntervalS)
+			reportUnhealth(clusterID, "punish", serviceMQProxy, host, "failed")
 			err = errors.Base(err, host)
 		}
 		return err
 	}); err != nil {
-		reportUnhealth(clusterID, "repair.msg", MQProxyServiceName, "-", "failed")
+		reportUnhealth(clusterID, "repair.msg", serviceMQProxy, "-", "failed")
 		span.Errorf("send repair message(%+v) failed %s", repairArgs, errors.Detail(err))
 		return
 	}
@@ -378,7 +375,7 @@ func (h *Handler) clearGarbage(ctx context.Context, location *access.Location) e
 		logMsg = deleteArgs
 	}
 	if err := retry.Timed(3, 200).On(func() error {
-		host, err := serviceController.GetServiceHost(ctx, MQProxyServiceName)
+		host, err := serviceController.GetServiceHost(ctx, serviceMQProxy)
 		if err != nil {
 			span.Info(err)
 			return err
@@ -386,13 +383,13 @@ func (h *Handler) clearGarbage(ctx context.Context, location *access.Location) e
 		err = h.mqproxyClient.SendDeleteMsg(ctx, host, deleteArgs)
 		if err != nil {
 			span.Infof("send to %s delete message(%+v) %s", host, logMsg, err.Error())
-			serviceController.PunishServiceWithThreshold(ctx, MQProxyServiceName, host, h.ServicePunishIntervalS)
-			reportUnhealth(location.ClusterID, "punish", MQProxyServiceName, host, "failed")
+			serviceController.PunishServiceWithThreshold(ctx, serviceMQProxy, host, h.ServicePunishIntervalS)
+			reportUnhealth(location.ClusterID, "punish", serviceMQProxy, host, "failed")
 			err = errors.Base(err, host)
 		}
 		return err
 	}); err != nil {
-		reportUnhealth(location.ClusterID, "delete.msg", MQProxyServiceName, "-", "failed")
+		reportUnhealth(location.ClusterID, "delete.msg", serviceMQProxy, "-", "failed")
 		span.Errorf("send delete message(%+v) failed %s", logMsg, errors.Detail(err))
 		return errors.Base(err, "send delete message:", logMsg)
 	}

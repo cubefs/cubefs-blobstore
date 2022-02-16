@@ -42,13 +42,6 @@ const (
 	defaultServicePinishThreshold uint32 = 3
 )
 
-var (
-	// AllocatorServiceName alias
-	AllocatorServiceName = proto.ServiceNameAllocator
-	// MQProxyServiceName alias
-	MQProxyServiceName = proto.ServiceNameMQProxy
-)
-
 // HostIDC item of host with idc
 type HostIDC struct {
 	Host     string
@@ -126,13 +119,13 @@ func NewServiceController(cfg ServiceConfig, cmCli clustermgr.APIAccess) (Servic
 
 	controller := &serviceControllerImpl{
 		serviceHosts: serviceMap{
-			AllocatorServiceName: &atomic.Value{},
-			MQProxyServiceName:   &atomic.Value{},
+			proto.ServiceNameAllocator: &atomic.Value{},
+			proto.ServiceNameMQProxy:   &atomic.Value{},
 		},
 		cmClient: cmCli,
 		serviceLocks: map[string]*sync.RWMutex{
-			AllocatorServiceName: {},
-			MQProxyServiceName:   {},
+			proto.ServiceNameAllocator: {},
+			proto.ServiceNameMQProxy:   {},
 		},
 		config: cfg,
 	}
@@ -162,7 +155,7 @@ func (s *serviceControllerImpl) load(cid proto.ClusterID, idc string) error {
 	span, ctx := trace.StartSpanFromContext(context.Background(), "access_cluster_service")
 	span.Debug("service loader for cluster:", cid)
 
-	for _, serviceName := range []string{AllocatorServiceName, MQProxyServiceName} {
+	for _, serviceName := range []string{proto.ServiceNameAllocator, proto.ServiceNameMQProxy} {
 		service, err := s.cmClient.GetService(ctx, clustermgr.GetServiceArgs{Name: serviceName})
 		if err != nil {
 			span.Warn("get service from cluster manager failed", err)

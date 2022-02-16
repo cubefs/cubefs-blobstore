@@ -123,7 +123,7 @@ func (h *Handler) allocFromAllocator(ctx context.Context, codeMode codemode.Code
 
 		var host string
 		for range [10]struct{}{} {
-			host, err = serviceController.GetServiceHost(ctx, AllocatorServiceName)
+			host, err = serviceController.GetServiceHost(ctx, serviceAllocator)
 			if err != nil {
 				span.Warn(err)
 				return errors.Info(err, "get allocator host", clusterID)
@@ -139,8 +139,8 @@ func (h *Handler) allocFromAllocator(ctx context.Context, codeMode codemode.Code
 		if err != nil {
 			if errorTimeout(err) || errorConnectionRefused(err) {
 				span.Info("punish unreachable allocator host:", host)
-				reportUnhealth(clusterID, "punish", AllocatorServiceName, host, "Timeout")
-				serviceController.PunishServiceWithThreshold(ctx, AllocatorServiceName, host, h.ServicePunishIntervalS)
+				reportUnhealth(clusterID, "punish", serviceAllocator, host, "Timeout")
+				serviceController.PunishServiceWithThreshold(ctx, serviceAllocator, host, h.ServicePunishIntervalS)
 			}
 			span.Warn(host, err)
 			return errors.Base(err, "alloc from allocator", host)

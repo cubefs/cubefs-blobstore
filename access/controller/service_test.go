@@ -26,6 +26,8 @@ import (
 	"github.com/cubefs/blobstore/common/trace"
 )
 
+var serviceName = proto.ServiceNameAllocator
+
 type hostSet map[string]struct{}
 
 func (set hostSet) Keys() []string {
@@ -47,7 +49,7 @@ func TestAccessServiceNew(t *testing.T) {
 			}, cmcli)
 		require.NoError(t, err)
 
-		_, err = sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+		_, err = sc.GetServiceHost(serviceCtx, serviceName)
 		require.NoError(t, err)
 	}
 	{
@@ -59,7 +61,7 @@ func TestAccessServiceNew(t *testing.T) {
 			}, cmcli)
 		require.NoError(t, err)
 
-		_, err = sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+		_, err = sc.GetServiceHost(serviceCtx, serviceName)
 		require.Error(t, err)
 
 		time.Sleep(time.Second * 2)
@@ -77,13 +79,13 @@ func TestAccessServiceGetServiceHost(t *testing.T) {
 
 	keys := make(hostSet)
 	for ii := 0; ii < 100; ii++ {
-		host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+		host, err := sc.GetServiceHost(serviceCtx, serviceName)
 		require.NoError(t, err)
 		keys[host] = struct{}{}
 	}
 	require.ElementsMatch(t, keys.Keys(), []string{"allocator-1", "allocator-2"})
 
-	hosts, err := sc.GetServiceHosts(serviceCtx, controller.AllocatorServiceName)
+	hosts, err := sc.GetServiceHosts(serviceCtx, serviceName)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"allocator-1", "allocator-2"}, hosts)
 }
@@ -100,16 +102,16 @@ func TestAccessServicePunishService(t *testing.T) {
 	{
 		keys := make(hostSet)
 		for ii := 0; ii < 100; ii++ {
-			host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+			host, err := sc.GetServiceHost(serviceCtx, serviceName)
 			require.NoError(t, err)
 			keys[host] = struct{}{}
 		}
 		require.ElementsMatch(t, keys.Keys(), []string{"allocator-1", "allocator-2"})
 	}
 
-	sc.PunishService(serviceCtx, controller.AllocatorServiceName, "allocator-2", 2)
+	sc.PunishService(serviceCtx, serviceName, "allocator-2", 2)
 	for ii := 0; ii < 100; ii++ {
-		host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+		host, err := sc.GetServiceHost(serviceCtx, serviceName)
 		require.NoError(t, err)
 		require.True(t, host == "allocator-1")
 	}
@@ -118,7 +120,7 @@ func TestAccessServicePunishService(t *testing.T) {
 	{
 		keys := make(hostSet)
 		for ii := 0; ii < 100; ii++ {
-			host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+			host, err := sc.GetServiceHost(serviceCtx, serviceName)
 			require.NoError(t, err)
 			keys[host] = struct{}{}
 		}
@@ -141,7 +143,7 @@ func TestAccessServicePunishServiceWithThreshold(t *testing.T) {
 	{
 		keys := make(hostSet)
 		for ii := 0; ii < 100; ii++ {
-			host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+			host, err := sc.GetServiceHost(serviceCtx, serviceName)
 			require.NoError(t, err)
 			keys[host] = struct{}{}
 		}
@@ -150,12 +152,12 @@ func TestAccessServicePunishServiceWithThreshold(t *testing.T) {
 
 	// not punish
 	for ii := threshold; ii > 1; ii-- {
-		sc.PunishServiceWithThreshold(serviceCtx, controller.AllocatorServiceName, "allocator-1", 2)
+		sc.PunishServiceWithThreshold(serviceCtx, serviceName, "allocator-1", 2)
 	}
 	{
 		keys := make(hostSet)
 		for ii := 0; ii < 100; ii++ {
-			host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+			host, err := sc.GetServiceHost(serviceCtx, serviceName)
 			require.NoError(t, err)
 			keys[host] = struct{}{}
 		}
@@ -163,9 +165,9 @@ func TestAccessServicePunishServiceWithThreshold(t *testing.T) {
 	}
 
 	// punished
-	sc.PunishServiceWithThreshold(serviceCtx, controller.AllocatorServiceName, "allocator-1", 2)
+	sc.PunishServiceWithThreshold(serviceCtx, serviceName, "allocator-1", 2)
 	for ii := 0; ii < 100; ii++ {
-		host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+		host, err := sc.GetServiceHost(serviceCtx, serviceName)
 		require.NoError(t, err)
 		require.True(t, host == "allocator-2")
 	}
@@ -174,7 +176,7 @@ func TestAccessServicePunishServiceWithThreshold(t *testing.T) {
 	{
 		keys := make(hostSet)
 		for ii := 0; ii < 100; ii++ {
-			host, err := sc.GetServiceHost(serviceCtx, controller.AllocatorServiceName)
+			host, err := sc.GetServiceHost(serviceCtx, serviceName)
 			require.NoError(t, err)
 			keys[host] = struct{}{}
 		}
