@@ -16,7 +16,6 @@ package base
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,31 +29,28 @@ func TestErrorStats(t *testing.T) {
 	err3 := errors.New("error 3")
 
 	es := NewErrorStats()
+	for range [3]struct{}{} {
+		es.AddFail(err1)
+	}
+	for range [5]struct{}{} {
+		es.AddFail(err2)
+	}
+	for range [2]struct{}{} {
+		es.AddFail(err3)
+	}
 
-	es.AddFail(err1)
-	es.AddFail(err1)
-	es.AddFail(err1)
-	es.AddFail(err2)
-	es.AddFail(err2)
-	es.AddFail(err2)
-	es.AddFail(err2)
-	es.AddFail(err2)
-	es.AddFail(err3)
-	es.AddFail(err3)
 	infos, _ := es.Stats()
 	res := FormatPrint(infos)
 
-	fmt.Println(res)
+	t.Log(res)
 
 	p, err := json.MarshalIndent(&res, "", "\t")
-	fmt.Println(err)
-	fmt.Printf("%s\n", p)
+	t.Logf("%v -> %s", err, p)
 
 	es2 := NewErrorStats()
 	infos, _ = es2.Stats()
 	p, err = json.MarshalIndent(&infos, "", "\t")
-	fmt.Println(err)
-	fmt.Printf("%s\n", p)
+	t.Logf("%v -> %s", err, p)
 }
 
 func TestErrStrFormat(t *testing.T) {
@@ -65,4 +61,9 @@ func TestErrStrFormat(t *testing.T) {
 	require.Equal(t, " EOF", errStrFormat(err1))
 	require.Equal(t, "fake error", errStrFormat(err2))
 	require.Equal(t, "", errStrFormat(err3))
+}
+
+func TestNewCounter(t *testing.T) {
+	counter := NewCounter(0, "", "")
+	require.NotNil(t, counter)
 }

@@ -27,18 +27,17 @@ import (
 	"github.com/cubefs/blobstore/util/errors"
 )
 
-const (
-	testTopic = "test_topic"
+var (
+	_ sarama.PartitionConsumer = &mockPartitionConsumer{}
+	_ sarama.Consumer          = &mockConsumer{}
 )
-
-var ErrMock = errors.New("mock err")
 
 type mockPartitionConsumer struct {
 	topic  string
 	pid    int32
 	offset int64
 
-	ch    chan *sarama.ConsumerMessage
+	msgCh chan *sarama.ConsumerMessage
 	errCh chan *sarama.ConsumerError
 }
 
@@ -47,49 +46,35 @@ func newMockPartitionConsumer(topic string, pid int32) *mockPartitionConsumer {
 		topic:  topic,
 		pid:    pid,
 		offset: 0,
-		ch:     make(chan *sarama.ConsumerMessage),
+		msgCh:  make(chan *sarama.ConsumerMessage),
 		errCh:  make(chan *sarama.ConsumerError),
 	}
 }
 
 func (m *mockPartitionConsumer) sendMsg(key, val string) {
-	msg := sarama.ConsumerMessage{
+	m.msgCh <- &sarama.ConsumerMessage{
 		Key:       []byte(key),
 		Value:     []byte(val),
 		Topic:     m.topic,
 		Partition: m.pid,
-		Offset:    m.offset,
+		Offset:    atomic.LoadInt64(&m.offset),
 	}
-	m.offset++
-	m.ch <- &msg
+	atomic.AddInt64(&m.offset, 1)
 }
 
 func (m *mockPartitionConsumer) sendErr(err error) {
-	CErr := sarama.ConsumerError{
+	m.errCh <- &sarama.ConsumerError{
 		Topic:     m.topic,
 		Partition: m.pid,
 		Err:       err,
 	}
-	m.errCh <- &CErr
 }
 
-func (m *mockPartitionConsumer) AsyncClose() {}
-
-func (m *mockPartitionConsumer) Close() error {
-	return nil
-}
-
-func (m *mockPartitionConsumer) Messages() <-chan *sarama.ConsumerMessage {
-	return m.ch
-}
-
-func (m *mockPartitionConsumer) Errors() <-chan *sarama.ConsumerError {
-	return m.errCh
-}
-
-func (m *mockPartitionConsumer) HighWaterMarkOffset() int64 {
-	return 0
-}
+func (m *mockPartitionConsumer) AsyncClose()                              {}
+func (m *mockPartitionConsumer) Close() error                             { return nil }
+func (m *mockPartitionConsumer) Messages() <-chan *sarama.ConsumerMessage { return m.msgCh }
+func (m *mockPartitionConsumer) Errors() <-chan *sarama.ConsumerError     { return m.errCh }
+func (m *mockPartitionConsumer) HighWaterMarkOffset() int64               { return 0 }
 
 type mockConsumer struct {
 	topics map[string][]*mockPartitionConsumer
@@ -123,7 +108,6 @@ func (m *mockConsumer) Run(msgCnt int) {
 			}()
 		}
 	}
-	fmt.Printf("run end\n")
 }
 
 func (m *mockConsumer) getPc(topic string, pid int32) *mockPartitionConsumer {
@@ -169,113 +153,56 @@ func (m *mockConsumer) Close() error {
 	return nil
 }
 
-type mockAccess struct {
-	offsets map[string]int64
-	retErr  error
-}
-
-func newMockAccess(err error) *mockAccess {
-	return &mockAccess{
-		offsets: make(map[string]int64),
-		retErr:  err,
-	}
-}
-
-func (m *mockAccess) Set(topic string, partition int32, off int64) error {
-	key := fmt.Sprintf("%s_%d", topic, partition)
-	m.offsets[key] = off
-	return m.retErr
-}
-
-func (m *mockAccess) Get(topic string, partition int32) (int64, error) {
-	key := fmt.Sprintf("%s_%d", topic, partition)
-	return m.offsets[key], m.retErr
-}
-
-type mockKafkaOffsetTable struct {
-	mockErr error
-	offset  int64
-}
-
-func (m *mockKafkaOffsetTable) Set(topic string, partition int32, off int64) error {
-	if m.mockErr != nil {
-		return m.mockErr
-	}
-	atomic.AddInt64(&m.offset, off)
-	return nil
-}
-
-func (m *mockKafkaOffsetTable) Get(topic string, partition int32) (int64, error) {
-	if m.mockErr != nil {
-		return 0, m.mockErr
-	}
-	return atomic.LoadInt64(&m.offset), nil
-}
-
-func TestPtConsumer(t *testing.T) {
-	defaultKafkaCfg()
+func TestPartitionConsumer(t *testing.T) {
 	mockConsume := newMockConsumer()
 	access := newMockAccess(nil)
 	pc, err := newKafkaPartitionConsumer(mockConsume, "topic1", 1, access)
 	require.NoError(t, err)
+
 	mockConsume.Run(100)
 	msgs := pc.ConsumeMessages(context.Background(), 5)
 	require.Equal(t, 5, len(msgs))
 
 	err = pc.CommitOffset(context.Background())
 	require.NoError(t, err)
-	fmt.Printf("msgs %s %s\n", msgs[0].Key, msgs[0].Value)
-	fmt.Printf("msgs %s %s\n", msgs[1].Key, msgs[1].Value)
-	fmt.Printf("access %+v", *access)
+	for idx, msg := range msgs {
+		t.Logf("message index:%d key:%s value:%s", idx, msg.Key, msg.Value)
+	}
+	t.Logf("access: %+v", access)
 }
 
 func TestTopicConsume(t *testing.T) {
+	const topic = "topic1"
 	var cs []IConsumer
 	mockConsume := newMockConsumer()
 	access := newMockAccess(nil)
-	pc, _ := newKafkaPartitionConsumer(mockConsume, "topic1", 1, access)
-	cs = append(cs, pc)
-	pc, _ = newKafkaPartitionConsumer(mockConsume, "topic1", 2, access)
-	cs = append(cs, pc)
-	pc, _ = newKafkaPartitionConsumer(mockConsume, "topic1", 3, access)
-	cs = append(cs, pc)
-
+	for _, pid := range []int32{1, 2, 3} {
+		pc, _ := newKafkaPartitionConsumer(mockConsume, topic, pid, access)
+		cs = append(cs, pc)
+	}
 	mockConsume.Run(100)
 
 	topicConsumer := &TopicConsumer{
-		topic:               "topic1",
 		partitionsConsumers: cs,
 	}
+	for _, pid := range []int32{1, 2, 3} {
+		topicConsumer.ConsumeMessages(context.Background(), 1)
+		err := topicConsumer.CommitOffset(context.Background())
+		require.NoError(t, err)
+		off, err := access.Get(topic, pid)
+		require.NoError(t, err)
+		require.Equal(t, int64(0), off)
+	}
+
 	topicConsumer.ConsumeMessages(context.Background(), 1)
 	err := topicConsumer.CommitOffset(context.Background())
 	require.NoError(t, err)
-	off, err := access.Get("topic1", 1)
-	require.NoError(t, err)
-	require.Equal(t, int64(0), off)
-
-	topicConsumer.ConsumeMessages(context.Background(), 1)
-	err = topicConsumer.CommitOffset(context.Background())
-	require.NoError(t, err)
-	off, err = access.Get("topic1", 2)
-	require.NoError(t, err)
-	require.Equal(t, int64(0), off)
-
-	topicConsumer.ConsumeMessages(context.Background(), 1)
-	err = topicConsumer.CommitOffset(context.Background())
-	require.NoError(t, err)
-	off, err = access.Get("topic1", 3)
-	require.NoError(t, err)
-	require.Equal(t, int64(0), off)
-
-	topicConsumer.ConsumeMessages(context.Background(), 1)
-	err = topicConsumer.CommitOffset(context.Background())
-	require.NoError(t, err)
-	off, err = access.Get("topic1", 1)
+	off, err := access.Get(topic, 1)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), off)
 }
 
-func TestConsumerErr(t *testing.T) {
+func TestConsumerError(t *testing.T) {
 	mockConsume := newMockConsumer()
 	access := newMockAccess(nil)
 	pc, err := newKafkaPartitionConsumer(mockConsume, "topic1", 1, access)
@@ -296,56 +223,31 @@ func TestLoadConsumeInfo(t *testing.T) {
 }
 
 func TestNewTopicConsumer(t *testing.T) {
-	// Given
-	broker0 := sarama.NewMockBrokerAddr(t, 0, "127.0.0.1:0")
-
-	var msg sarama.ByteEncoder = []byte("FOO")
-
-	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)
-	mockFetchResponse.SetVersion(1)
-	for i := 0; i < 1000; i++ {
-		mockFetchResponse.SetMessage(testTopic, 0, int64(i), msg)
-	}
-
-	broker0.SetHandlerByMap(map[string]sarama.MockResponse{
-		"MetadataRequest": sarama.NewMockMetadataResponse(t).
-			SetBroker(broker0.Addr(), broker0.BrokerID()).
-			SetLeader(testTopic, 0, broker0.BrokerID()),
-		"OffsetRequest": sarama.NewMockOffsetResponse(t).
-			SetOffset(testTopic, 0, sarama.OffsetOldest, 0).
-			SetOffset(testTopic, 0, sarama.OffsetNewest, 2345),
-		"FetchRequest": mockFetchResponse,
-	})
-
-	defer broker0.Close()
+	broker := newBroker(t)
+	defer broker.Close()
 	cfg := &KafkaConfig{
 		Topic:      testTopic,
-		BrokerList: []string{broker0.Addr()},
+		BrokerList: []string{broker.Addr()},
 		Partitions: []int32{0},
 	}
 
-	tbl := &mockKafkaOffsetTable{}
-	consumer, err := NewTopicConsumer(cfg, tbl)
+	access := newMockAccess(nil)
+	consumer, err := NewTopicConsumer(cfg, access)
 	require.NoError(t, err)
 
 	msgs := consumer.ConsumeMessages(context.Background(), 1)
 	require.Equal(t, 1, len(msgs))
 
-	tbl.mockErr = ErrMock
+	access.err = errMock
 	err = consumer.CommitOffset(context.Background())
 	require.Error(t, err)
 
 	cfg.BrokerList = []string{}
-	_, err = NewTopicConsumer(cfg, tbl)
+	_, err = NewTopicConsumer(cfg, access)
 	require.Error(t, err)
 
 	cfg.Partitions = nil
-	cfg.BrokerList = []string{broker0.Addr()}
-	_, err = NewTopicConsumer(cfg, tbl)
+	cfg.BrokerList = []string{broker.Addr()}
+	_, err = NewTopicConsumer(cfg, access)
 	require.Error(t, err)
-}
-
-func TestNewCounter(t *testing.T) {
-	counter := NewCounter(0, "", "")
-	require.NotNil(t, counter)
 }

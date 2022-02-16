@@ -15,21 +15,22 @@
 package base
 
 import (
-	"context"
-	"time"
-
-	"github.com/cubefs/blobstore/common/trace"
+	"github.com/cubefs/blobstore/common/counter"
+	"github.com/cubefs/blobstore/common/proto"
+	"github.com/cubefs/blobstore/tinker/client"
 )
 
-// LoopExecUntilSuccess exec f until success
-func LoopExecUntilSuccess(ctx context.Context, msg string, f func() error) {
-	span := trace.SpanFromContextSafe(ctx)
-	for {
-		err := f()
-		if err == nil {
-			break
-		}
-		span.Errorf("%s execute fail err: %s", msg, err.Error())
-		time.Sleep(1 * time.Second)
-	}
+// IVolumeCache define the interface used for volume cache manager
+type IVolumeCache interface {
+	Update(vid proto.Vid) (*client.VolInfo, error)
+	Get(vid proto.Vid) (*client.VolInfo, error)
+	Load() error
+}
+
+// IBaseMgr define the base interface used for delete and repair manager
+type IBaseMgr interface {
+	Enabled() bool
+	RunTask()
+	GetTaskStats() (success [counter.SLOT]int, failed [counter.SLOT]int)
+	GetErrorStats() (errStats []string, totalErrCnt uint64)
 }

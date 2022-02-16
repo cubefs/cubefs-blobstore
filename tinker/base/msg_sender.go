@@ -22,26 +22,26 @@ type IProducer interface {
 	SendMessages(msgs [][]byte) (err error)
 }
 
-type msgSenderEx struct {
+type msgSender struct {
 	topic    string
 	producer kafka.MsgProducer
 }
 
-// NewMsgSenderEx returns message sender
-func NewMsgSenderEx(topic string, cfg *kafka.ProducerCfg) (IProducer, error) {
+// NewMsgSender returns message sender
+func NewMsgSender(topic string, cfg *kafka.ProducerCfg) (IProducer, error) {
 	producer, err := kafka.NewProducer(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &msgSenderEx{topic: topic, producer: producer}, nil
+	return &msgSender{topic: topic, producer: producer}, nil
 }
 
 // SendMessage send message to mq
-func (sender *msgSenderEx) SendMessage(msg []byte) (err error) {
+func (sender *msgSender) SendMessage(msg []byte) error {
 	return sender.producer.SendMessage(sender.topic, msg)
 }
 
 // SendMessages send message batch
-func (sender *msgSenderEx) SendMessages(msgs [][]byte) error {
+func (sender *msgSender) SendMessages(msgs [][]byte) error {
 	return sender.producer.SendMessages(sender.topic, msgs)
 }

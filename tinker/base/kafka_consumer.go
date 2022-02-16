@@ -28,8 +28,12 @@ import (
 	"github.com/cubefs/blobstore/tinker/db"
 )
 
-// MinConsumeWaitTime default min consume wait time
-const MinConsumeWaitTime = time.Millisecond * 500
+// TODO:
+// 1. merge monitor into consumer
+// 2. rename NewTopicConsumer to round robin consumer
+// 3. do not commit if have not consume
+
+const minConsumeWaitTime = time.Millisecond * 500
 
 // IConsumer define the interface of consumer for message consume
 type IConsumer interface {
@@ -52,24 +56,20 @@ type ConsumeInfo struct {
 
 // TopicConsumer rotate consume msg among partition consumers
 type TopicConsumer struct {
-	topic               string
 	partitionsConsumers []IConsumer
 
 	curIdx int
 }
 
-// NewTopicConsumer returns topic consumer
-func NewTopicConsumer(cfg *KafkaConfig, offAccessor db.IKafkaOffsetTable) (IConsumer, error) {
-	consumers, err := NewKafkaPartitionConsumers(cfg, offAccessor)
+// NewTopicConsumer returns topic round-robin partition consumer
+func NewTopicConsumer(cfg *KafkaConfig, offsetAccessor db.IKafkaOffsetTable) (IConsumer, error) {
+	consumers, err := NewKafkaPartitionConsumers(cfg, offsetAccessor)
 	if err != nil {
 		return nil, err
 	}
-
 	topicConsumer := &TopicConsumer{
 		partitionsConsumers: consumers,
-		topic:               cfg.Topic,
 	}
-
 	return topicConsumer, err
 }
 
@@ -83,8 +83,7 @@ func (c *TopicConsumer) ConsumeMessages(ctx context.Context, msgCnt int) (msgs [
 // CommitOffset commit offset
 func (c *TopicConsumer) CommitOffset(ctx context.Context) error {
 	for _, pc := range c.partitionsConsumers {
-		err := pc.CommitOffset(ctx)
-		if err != nil {
+		if err := pc.CommitOffset(ctx); err != nil {
 			return err
 		}
 	}
@@ -93,19 +92,17 @@ func (c *TopicConsumer) CommitOffset(ctx context.Context) error {
 
 // PartitionConsumer partition consumer
 type PartitionConsumer struct {
-	topic       string
-	ptID        int32
-	ptConsumer  sarama.PartitionConsumer
-	consumeInfo ConsumeInfo
-
-	// consume offset persist
-	offset db.IKafkaOffsetTable
+	topic          string
+	partition      int32
+	consumer       sarama.PartitionConsumer
+	consumeInfo    ConsumeInfo
+	offsetAccessor db.IKafkaOffsetTable // consume offset persistence
 }
 
 // NewKafkaPartitionConsumers returns kafka partition consumers
-func NewKafkaPartitionConsumers(cfg *KafkaConfig, offAccessor db.IKafkaOffsetTable) ([]IConsumer, error) {
+func NewKafkaPartitionConsumers(cfg *KafkaConfig, offsetAccessor db.IKafkaOffsetTable) ([]IConsumer, error) {
 	if len(cfg.Partitions) == 0 {
-		return nil, errors.New("empty partition id")
+		return nil, errors.New("empty partitions")
 	}
 
 	var consumers []IConsumer
@@ -114,8 +111,8 @@ func NewKafkaPartitionConsumers(cfg *KafkaConfig, offAccessor db.IKafkaOffsetTab
 		return nil, fmt.Errorf("new consumer: err[%w]", err)
 	}
 
-	for _, ptID := range cfg.Partitions {
-		partitionConsumer, err := newKafkaPartitionConsumer(consumer, cfg.Topic, ptID, offAccessor)
+	for _, partition := range cfg.Partitions {
+		partitionConsumer, err := newKafkaPartitionConsumer(consumer, cfg.Topic, partition, offsetAccessor)
 		if err != nil {
 			return nil, fmt.Errorf("new kafka partition consumer: err[%w]", err)
 		}
@@ -125,25 +122,25 @@ func NewKafkaPartitionConsumers(cfg *KafkaConfig, offAccessor db.IKafkaOffsetTab
 	return consumers, nil
 }
 
-func newKafkaPartitionConsumer(consumer sarama.Consumer, topic string, ptID int32, offset db.IKafkaOffsetTable) (*PartitionConsumer, error) {
+func newKafkaPartitionConsumer(consumer sarama.Consumer, topic string, partition int32, offsetAccessor db.IKafkaOffsetTable) (*PartitionConsumer, error) {
 	kafkaConsumer := PartitionConsumer{
-		topic:  topic,
-		offset: offset,
+		topic:          topic,
+		offsetAccessor: offsetAccessor,
 	}
 
-	ptConsumeInfo, err := kafkaConsumer.loadConsumeInfo(kafkaConsumer.topic, ptID)
+	partConsumeInfo, err := kafkaConsumer.loadConsumeInfo(topic, partition)
 	if err != nil {
-		return nil, fmt.Errorf("loadConsumeInfo: topic[%s], err[%w]", kafkaConsumer.topic, err)
+		return nil, fmt.Errorf("loadConsumeInfo: topic[%s], err[%w]", topic, err)
 	}
 
-	pc, err := consumer.ConsumePartition(kafkaConsumer.topic, ptID, ptConsumeInfo.Commit)
+	pc, err := consumer.ConsumePartition(topic, partition, partConsumeInfo.Commit)
 	if err != nil {
-		return nil, fmt.Errorf("consume partition: topic[%s], ptID[%d], ptConsumeInfo[%+v], err[%w]", topic, ptID, ptConsumeInfo, err)
+		return nil, fmt.Errorf("consume partition: topic[%s], partition[%d], partConsumeInfo[%+v], err[%w]", topic, partition, partConsumeInfo, err)
 	}
 
-	kafkaConsumer.ptID = ptID
-	kafkaConsumer.ptConsumer = pc
-	kafkaConsumer.consumeInfo = ptConsumeInfo
+	kafkaConsumer.partition = partition
+	kafkaConsumer.consumer = pc
+	kafkaConsumer.consumeInfo = partConsumeInfo
 
 	return &kafkaConsumer, nil
 }
@@ -153,26 +150,24 @@ func (c *PartitionConsumer) ConsumeMessages(ctx context.Context, msgCnt int) (ms
 	span := trace.SpanFromContextSafe(ctx)
 
 	d := time.Millisecond / 2 * time.Duration(msgCnt) // assume each message cost 0.5 ms
-	if d < MinConsumeWaitTime {
-		d = MinConsumeWaitTime
+	if d < minConsumeWaitTime {
+		d = minConsumeWaitTime
 	}
 
 	ticker := time.NewTicker(d)
 	defer ticker.Stop()
 
 	start := time.Now()
-
-	var err error
 	for {
+		var err error
 		var msg *sarama.ConsumerMessage
 		select {
-		case msg = <-c.ptConsumer.Messages():
-		case err = <-c.ptConsumer.Errors():
+		case msg = <-c.consumer.Messages():
+		case err = <-c.consumer.Errors():
 		case <-ticker.C:
-			break
 		}
 		if err != nil {
-			span.Errorf("acquire msg failed: topic[%s], pid[%d], err[%+v]", c.topic, c.ptID, err)
+			span.Errorf("acquire msg failed: topic[%s], partition[%d], err[%+v]", c.topic, c.partition, err)
 			break
 		}
 
@@ -188,13 +183,8 @@ func (c *PartitionConsumer) ConsumeMessages(ctx context.Context, msgCnt int) (ms
 		}
 	}
 
-	span.Debugf("consume info: topic[%s], pid[%d], time cost[%+v], consumer msg numbers[%d], offset[%d], batch msg cnt[%d]",
-		c.topic,
-		c.ptID,
-		time.Since(start),
-		len(msgs),
-		c.consumeInfo.Offset,
-		msgCnt)
+	span.Debugf("consume info: topic[%s], partition[%d], time cost[%+v], consumer msg numbers[%d], offset[%d], batch msg cnt[%d]",
+		c.topic, c.partition, time.Since(start), len(msgs), c.consumeInfo.Offset, msgCnt)
 	return
 }
 
@@ -202,18 +192,19 @@ func (c *PartitionConsumer) ConsumeMessages(ctx context.Context, msgCnt int) (ms
 func (c *PartitionConsumer) CommitOffset(ctx context.Context) error {
 	span := trace.SpanFromContextSafe(ctx)
 
-	span.Debugf("start commit offset: offset[%d], topic[%s], pid[%d]", c.consumeInfo.Offset, c.topic, c.ptID)
-	err := c.offset.Set(c.topic, c.ptID, c.consumeInfo.Offset)
+	offset := c.consumeInfo.Offset
+	span.Debugf("start commit offset: offset[%d], topic[%s], partition[%d]", offset, c.topic, c.partition)
+	err := c.offsetAccessor.Set(c.topic, c.partition, offset)
 	if err != nil {
 		span.Errorf("commit offset failed: [%+v]", err)
 		return err
 	}
-	c.consumeInfo.Commit = c.consumeInfo.Offset
+	c.consumeInfo.Commit = offset
 	return nil
 }
 
 func (c *PartitionConsumer) loadConsumeInfo(topic string, pt int32) (consumeInfo ConsumeInfo, err error) {
-	commitOffset, err := c.offset.Get(topic, pt)
+	commitOffset, err := c.offsetAccessor.Get(topic, pt)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return ConsumeInfo{Commit: sarama.OffsetOldest, Offset: sarama.OffsetOldest}, nil

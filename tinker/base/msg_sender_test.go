@@ -23,7 +23,7 @@ import (
 	"github.com/cubefs/blobstore/common/kafka"
 )
 
-func TestMsgSenderEx_SendMessage(t *testing.T) {
+func TestMsgSender_SendMessage(t *testing.T) {
 	kafka.DefaultKafkaVersion = sarama.V0_9_0_1
 
 	seedBroker := sarama.NewMockBrokerAddr(t, 1, "127.0.0.1:0")
@@ -40,14 +40,14 @@ func TestMsgSenderEx_SendMessage(t *testing.T) {
 		leader.Returns(prodSuccess)
 	}
 
-	msgSender, err := NewMsgSenderEx(testTopic, &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
+	msgSender, err := NewMsgSender(testTopic, &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
 	require.NoError(t, err)
 
 	err = msgSender.SendMessage([]byte("dasdada"))
 	require.NoError(t, err)
 }
 
-func TestMsgSenderEx_SendMessages(t *testing.T) {
+func TestMsgSender_SendMessages(t *testing.T) {
 	kafka.DefaultKafkaVersion = sarama.V0_9_0_1
 
 	seedBroker := sarama.NewMockBrokerAddr(t, 1, "127.0.0.1:0")
@@ -64,7 +64,7 @@ func TestMsgSenderEx_SendMessages(t *testing.T) {
 		leader.Returns(prodSuccess)
 	}
 
-	msgSender, err := NewMsgSenderEx(testTopic, &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
+	msgSender, err := NewMsgSender(testTopic, &kafka.ProducerCfg{BrokerList: []string{seedBroker.Addr()}})
 	require.NoError(t, err)
 
 	err = msgSender.SendMessages([][]byte{[]byte("dasdada")})

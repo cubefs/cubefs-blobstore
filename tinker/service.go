@@ -17,6 +17,7 @@ package tinker
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cubefs/blobstore/api/blobnode"
 	"github.com/cubefs/blobstore/api/clustermgr"
@@ -381,4 +382,13 @@ func (s *Service) runKafkaMonitor(access db.IKafkaOffsetTable) error {
 		go m.Run()
 	}
 	return nil
+}
+
+func insistOn(ctx context.Context, errMsg string, on func() error) {
+	attempt := 0
+	retry.InsistContext(ctx, time.Second, on, func(err error) {
+		attempt++
+		span := trace.SpanFromContextSafe(ctx)
+		span.Errorf("insist attempt-%d: %s %s", attempt, errMsg, err.Error())
+	})
 }

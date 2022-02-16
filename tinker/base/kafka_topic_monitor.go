@@ -29,15 +29,16 @@ import (
 
 // KafkaTopicMonitor kafka monitor
 type KafkaTopicMonitor struct {
-	offsetAccessor   db.IKafkaOffsetTable
-	topic            string
-	partitions       []int32
-	monitor          *kafka.KafkaMonitor
-	monitorIntervalS int
+	topic          string
+	partitions     []int32
+	offsetAccessor db.IKafkaOffsetTable
+	monitor        *kafka.KafkaMonitor
+	interval       time.Duration
 }
 
 // NewKafkaTopicMonitor returns kafka topic monitor
-func NewKafkaTopicMonitor(cfg *KafkaConfig, access db.IKafkaOffsetTable, monitorIntervalS int) (*KafkaTopicMonitor, error) {
+// TODO: remove KafkaConfig.Partitions config, monitor all partitions
+func NewKafkaTopicMonitor(cfg *KafkaConfig, offsetAccessor db.IKafkaOffsetTable, monitorIntervalS int) (*KafkaTopicMonitor, error) {
 	consumer, err := sarama.NewConsumer(cfg.BrokerList, defaultKafkaCfg())
 	if err != nil {
 		return nil, err
@@ -49,39 +50,42 @@ func NewKafkaTopicMonitor(cfg *KafkaConfig, access db.IKafkaOffsetTable, monitor
 	}
 
 	// create kafka monitor
-	monitor, err := kafka.NewKafkaMonitor(
-		proto.ServiceNameTinker,
-		cfg.BrokerList,
-		cfg.Topic,
-		partitions,
-		kafka.DefauleintervalSecs)
+	monitor, err := kafka.NewKafkaMonitor(proto.ServiceNameTinker, cfg.BrokerList, cfg.Topic, partitions, kafka.DefauleintervalSecs)
 	if err != nil {
 		return nil, fmt.Errorf("new kafka monitor: broker list[%v], topic[%v], parts[%v], error[%w]",
 			cfg.BrokerList, cfg.Topic, partitions, err)
 	}
+
+	interval := time.Second * time.Duration(monitorIntervalS)
+	if interval <= 0 {
+		interval = time.Millisecond
+	}
 	return &KafkaTopicMonitor{
-		monitor:          monitor,
-		topic:            cfg.Topic,
-		partitions:       partitions,
-		offsetAccessor:   access,
-		monitorIntervalS: monitorIntervalS,
+		topic:          cfg.Topic,
+		partitions:     partitions,
+		offsetAccessor: offsetAccessor,
+		monitor:        monitor,
+		interval:       interval,
 	}, nil
 }
 
 // Run run kafka monitor
 func (m *KafkaTopicMonitor) Run() {
+	ticker := time.NewTicker(m.interval)
+	defer ticker.Stop()
+
 	for {
-		for _, pid := range m.partitions {
-			off, err := m.offsetAccessor.Get(m.topic, pid)
+		for _, partition := range m.partitions {
+			off, err := m.offsetAccessor.Get(m.topic, partition)
 			if err != nil {
 				if err != mongo.ErrNoDocuments {
 					log.Errorf("get consume offset failed: err[%v]", err)
 				}
 				continue
 			}
-			m.monitor.SetConsumeOffset(off, pid)
+			m.monitor.SetConsumeOffset(off, partition)
 		}
 
-		time.Sleep(time.Duration(m.monitorIntervalS) * time.Second)
+		<-ticker.C
 	}
 }

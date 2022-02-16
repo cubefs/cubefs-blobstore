@@ -41,18 +41,20 @@ type priorityConsumer struct {
 }
 
 // NewPriorityConsumer return priority consumer
-func NewPriorityConsumer(cfgs []PriorityConsumerConfig, offAccessor db.IKafkaOffsetTable) (IConsumer, error) {
+func NewPriorityConsumer(cfgs []PriorityConsumerConfig, offsetAccessor db.IKafkaOffsetTable) (IConsumer, error) {
 	multiConsumer := priorityConsumer{}
 	multiConsumer.topicConsumers = make(map[string]IConsumer, len(cfgs))
 	multiConsumer.sortedTopicPriority = make([]topicPriority, 0)
 	for _, cfg := range cfgs {
-		cs, err := NewTopicConsumer(&cfg.KafkaConfig, offAccessor)
+		cs, err := NewTopicConsumer(&cfg.KafkaConfig, offsetAccessor)
 		if err != nil {
 			return nil, fmt.Errorf("new topic consumer: cfg[%+v], err[%w]", cfg.KafkaConfig, err)
 		}
 
 		multiConsumer.topicConsumers[cfg.KafkaConfig.Topic] = cs
-		multiConsumer.sortedTopicPriority = append(multiConsumer.sortedTopicPriority, topicPriority{topic: cfg.KafkaConfig.Topic, priority: cfg.Priority})
+		multiConsumer.sortedTopicPriority = append(multiConsumer.sortedTopicPriority, topicPriority{
+			topic: cfg.KafkaConfig.Topic, priority: cfg.Priority,
+		})
 	}
 
 	sort.SliceStable(multiConsumer.sortedTopicPriority, func(i, j int) bool {
@@ -80,8 +82,7 @@ func (m *priorityConsumer) ConsumeMessages(ctx context.Context, msgCnt int) (msg
 // CommitOffset commit offset
 func (m *priorityConsumer) CommitOffset(ctx context.Context) error {
 	for _, c := range m.topicConsumers {
-		err := c.CommitOffset(ctx)
-		if err != nil {
+		if err := c.CommitOffset(ctx); err != nil {
 			return err
 		}
 	}

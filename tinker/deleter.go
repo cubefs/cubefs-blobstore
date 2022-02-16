@@ -209,7 +209,7 @@ func NewDeleteMgr(
 		return nil, err
 	}
 
-	failMsgSender, err := base.NewMsgSenderEx(cfg.FailTopic.Topic, &cfg.FailMsgSender)
+	failMsgSender, err := base.NewMsgSender(cfg.FailTopic.Topic, &cfg.FailMsgSender)
 	if err != nil {
 		return nil, err
 	}
@@ -359,10 +359,9 @@ func (d *deleteTopicConsumer) consumeAndDelete(consumer base.IConsumer, batchCnt
 	}
 
 	msgs := consumer.ConsumeMessages(ctx, batchCnt)
-
 	d.handleMsgBatch(ctx, msgs)
 
-	base.LoopExecUntilSuccess(ctx, "delete consumer.CommitOffset", func() error {
+	insistOn(ctx, "deleter consumer.CommitOffset", func() error {
 		return consumer.CommitOffset(ctx)
 	})
 }
@@ -417,7 +416,7 @@ func (d *deleteTopicConsumer) handleMsgBatch(ctx context.Context, mqMsgs []*sara
 				d.delFailCounterByMin.Add()
 				d.errStatsDistribution.AddFail(ret.err)
 
-				base.LoopExecUntilSuccess(ctx, "send msg to fail queue", func() error {
+				insistOn(ctx, "deleter send2FailQueue", func() error {
 					return d.send2FailQueue(ctx, *ret.delMsg)
 				})
 

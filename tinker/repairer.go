@@ -142,7 +142,7 @@ func NewShardRepairMgr(
 		return nil, err
 	}
 
-	failMsgSender, err := base.NewMsgSenderEx(cfg.FailTopic.Topic, &cfg.FailMsgSender)
+	failMsgSender, err := base.NewMsgSender(cfg.FailTopic.Topic, &cfg.FailMsgSender)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (s *ShardRepairMgr) consumerAndRepair(consumer base.IConsumer, batchCnt int
 
 	s.handleMsgBatch(ctx, msgs)
 
-	base.LoopExecUntilSuccess(ctx, "repair consumer.CommitOffset", func() error {
+	insistOn(ctx, "repairer consumer.CommitOffset", func() error {
 		return consumer.CommitOffset(ctx)
 	})
 }
@@ -250,7 +250,7 @@ func (s *ShardRepairMgr) handleMsgBatch(ctx context.Context, msgs []*sarama.Cons
 			s.repairFailedCounterMin.Add()
 			s.errStatsDistribution.AddFail(ret.err)
 
-			base.LoopExecUntilSuccess(ctx, "repair msg send to fail queue", func() error {
+			insistOn(ctx, "repairer send2FailQueue", func() error {
 				return s.send2FailQueue(ctx, *ret.repairMsg)
 			})
 		case ShardRepairUnexpect, ShardRepairOrphan:
@@ -400,7 +400,7 @@ func (s *ShardRepairMgr) saveOrphanShard(ctx context.Context, repairMsg proto.Sh
 	}
 	span.Infof("save orphan shard: [%+v]", shard)
 
-	base.LoopExecUntilSuccess(ctx, "save orphaned shard", func() error {
+	insistOn(ctx, "save orphan shard", func() error {
 		return s.orphanShardTable.Save(shard)
 	})
 }

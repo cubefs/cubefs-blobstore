@@ -18,41 +18,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewKafkaTopicMonitor(t *testing.T) {
-	// Given
-	broker0 := sarama.NewMockBrokerAddr(t, 0, "127.0.0.1:0")
-
-	var msg sarama.ByteEncoder = []byte("FOO")
-
-	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)
-	mockFetchResponse.SetVersion(1)
-	for i := 0; i < 1000; i++ {
-		mockFetchResponse.SetMessage(testTopic, 0, int64(i), msg)
-	}
-
-	broker0.SetHandlerByMap(map[string]sarama.MockResponse{
-		"MetadataRequest": sarama.NewMockMetadataResponse(t).
-			SetBroker(broker0.Addr(), broker0.BrokerID()).
-			SetLeader(testTopic, 0, broker0.BrokerID()),
-		"OffsetRequest": sarama.NewMockOffsetResponse(t).
-			SetOffset(testTopic, 0, sarama.OffsetOldest, 0).
-			SetOffset(testTopic, 0, sarama.OffsetNewest, 2345),
-		"FetchRequest": mockFetchResponse,
-	})
-
-	defer broker0.Close()
+	broker := newBroker(t)
+	defer broker.Close()
 	cfg := &KafkaConfig{
 		Topic:      testTopic,
-		BrokerList: []string{broker0.Addr()},
+		BrokerList: []string{broker.Addr()},
 		Partitions: []int32{0},
 	}
 
-	tbl := &mockKafkaOffsetTable{}
-	monitor, err := NewKafkaTopicMonitor(cfg, tbl, 0)
+	access := newMockAccess(nil)
+	monitor, err := NewKafkaTopicMonitor(cfg, access, 0)
 	go func() {
 		monitor.Run()
 	}()
@@ -60,6 +39,6 @@ func TestNewKafkaTopicMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg.BrokerList = []string{}
-	monitor, err = NewKafkaTopicMonitor(cfg, tbl, 0)
+	monitor, err = NewKafkaTopicMonitor(cfg, access, 0)
 	require.Error(t, err)
 }
