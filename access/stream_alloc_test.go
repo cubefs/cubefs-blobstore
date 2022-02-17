@@ -65,6 +65,6 @@ func TestAccessStreamAllocBase(t *testing.T) {
 			time.Sleep(time.Second * 2)
 		}()
 		_, err := streamer.Alloc(ctx(), allocTimeoutSize+1, 0, 0, 0)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	}
 }

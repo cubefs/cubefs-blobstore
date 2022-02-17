@@ -24,9 +24,6 @@ import (
 )
 
 func TestAccessStreamCodeModePairs(t *testing.T) {
-	tacticEC6P6 := codemode.EC6P6.Tactic()
-	tacticEC6P10L2 := codemode.EC6P10L2.Tactic()
-
 	m := access.CodeModePairs{
 		codemode.EC6P6: access.CodeModePair{
 			Policy: codemode.Policy{
@@ -35,7 +32,7 @@ func TestAccessStreamCodeModePairs(t *testing.T) {
 				MaxSize:  1 << 20,
 				Enable:   true,
 			},
-			Tactic: tacticEC6P6,
+			Tactic: codemode.EC6P6.Tactic(),
 		},
 		codemode.EC6P10L2: access.CodeModePair{
 			Policy: codemode.Policy{
@@ -44,7 +41,7 @@ func TestAccessStreamCodeModePairs(t *testing.T) {
 				MaxSize:  1 << 40,
 				Enable:   true,
 			},
-			Tactic: tacticEC6P10L2,
+			Tactic: codemode.EC6P10L2.Tactic(),
 		},
 	}
 
@@ -64,7 +61,6 @@ func TestAccessStreamCodeModePairs(t *testing.T) {
 		{1 << 40, false, codemode.EC6P10L2},
 		{1 << 50, true, 0},
 	}
-
 	for _, cs := range cases {
 		if cs.isPanic {
 			require.Panics(t, func() { m.SelectCodeMode(cs.size) })

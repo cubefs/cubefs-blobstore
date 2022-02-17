@@ -299,18 +299,17 @@ func (h *Handler) Delete(ctx context.Context, location *access.Location) error {
 	return h.clearGarbage(ctx, location)
 }
 
-func (h *Handler) sendRepairMsgBg(ctx context.Context,
-	clusterID proto.ClusterID, vid proto.Vid, bid proto.BlobID, badIdx []uint8) {
+func (h *Handler) sendRepairMsgBg(ctx context.Context, blob blobIdent, badIdxes []uint8) {
 	go func() {
-		h.sendRepairMsg(ctx, clusterID, vid, bid, badIdx)
+		h.sendRepairMsg(ctx, blob, badIdxes)
 	}()
 }
 
-func (h *Handler) sendRepairMsg(ctx context.Context,
-	clusterID proto.ClusterID, vid proto.Vid, bid proto.BlobID, badIdx []uint8) {
+func (h *Handler) sendRepairMsg(ctx context.Context, blob blobIdent, badIdxes []uint8) {
 	span := trace.SpanFromContextSafe(ctx)
-	span.Infof("to repair blob(%d %d %d) bad indexes(%+v)", clusterID, vid, bid, badIdx)
+	span.Infof("to repair %s indexes(%+v)", blob.String(), badIdxes)
 
+	clusterID := blob.cid
 	serviceController, err := h.clusterController.GetServiceController(clusterID)
 	if err != nil {
 		span.Error(errors.Detail(err))
@@ -320,21 +319,21 @@ func (h *Handler) sendRepairMsg(ctx context.Context,
 
 	repairArgs := &mqproxy.ShardRepairArgs{
 		ClusterID: clusterID,
-		Bid:       bid,
-		Vid:       vid,
-		BadIdxes:  badIdx[:],
+		Bid:       blob.bid,
+		Vid:       blob.vid,
+		BadIdxes:  badIdxes[:],
 		Reason:    "access-repair",
 	}
 
 	if err := retry.Timed(3, 200).On(func() error {
 		host, err := serviceController.GetServiceHost(ctx, serviceMQProxy)
 		if err != nil {
-			span.Info(err)
+			span.Warn(err)
 			return err
 		}
 		err = h.mqproxyClient.SendShardRepairMsg(ctx, host, repairArgs)
 		if err != nil {
-			span.Infof("send to %s repair message(%+v) %s", host, repairArgs, err.Error())
+			span.Warnf("send to %s repair message(%+v) %s", host, repairArgs, err.Error())
 			serviceController.PunishServiceWithThreshold(ctx, serviceMQProxy, host, h.ServicePunishIntervalS)
 			reportUnhealth(clusterID, "punish", serviceMQProxy, host, "failed")
 			err = errors.Base(err, host)
@@ -377,12 +376,12 @@ func (h *Handler) clearGarbage(ctx context.Context, location *access.Location) e
 	if err := retry.Timed(3, 200).On(func() error {
 		host, err := serviceController.GetServiceHost(ctx, serviceMQProxy)
 		if err != nil {
-			span.Info(err)
+			span.Warn(err)
 			return err
 		}
 		err = h.mqproxyClient.SendDeleteMsg(ctx, host, deleteArgs)
 		if err != nil {
-			span.Infof("send to %s delete message(%+v) %s", host, logMsg, err.Error())
+			span.Warnf("send to %s delete message(%+v) %s", host, logMsg, err.Error())
 			serviceController.PunishServiceWithThreshold(ctx, serviceMQProxy, host, h.ServicePunishIntervalS)
 			reportUnhealth(location.ClusterID, "punish", serviceMQProxy, host, "failed")
 			err = errors.Base(err, host)

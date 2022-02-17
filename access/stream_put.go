@@ -47,6 +47,9 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 	span := trace.SpanFromContextSafe(ctx)
 	span.Debugf("put request size:%d hashes:b(%b)", size, hasherMap.ToHashAlgorithm())
 
+	if size <= 0 {
+		return nil, errcode.ErrIllegalArguments
+	}
 	if size > h.maxObjectSize {
 		span.Info("exceed max object size", h.maxObjectSize)
 		return nil, errcode.ErrAccessExceedSize
@@ -89,39 +92,34 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 		}
 	}()
 
-	readSize := int(blobSize)
-	if size < int64(readSize) {
-		readSize = int(size)
-	}
-
-	st := time.Now()
-	buffer, err := ec.NewBuffer(readSize, selectedCodeMode.Tactic(), h.memPool)
-	if dur := time.Since(st); dur > time.Millisecond {
-		span.Debug("new ec buffer", dur)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		buffer.Release()
-	}()
-
-	readBuff := buffer.DataBuf[:readSize]
-	shards, err := h.encoder[selectedCodeMode].Split(buffer.ECDataBuf)
-	if err != nil {
-		return nil, err
-	}
-
+	var buffer *ec.Buffer
 	putTime := new(timeReadWrite)
 	defer func() {
+		// release ec buffer which have not takeover
+		buffer.Release()
 		span.AppendRPCTrackLog([]string{putTime.String()})
 	}()
 
+	encoder := h.encoder[selectedCodeMode]
+	tactic := selectedCodeMode.Tactic()
 	for _, blob := range location.Spread() {
 		vid, bid, bsize := blob.Vid, blob.Bid, int(blob.Size)
-		if bsize < len(readBuff) {
-			readBuff = readBuff[:bsize]
+
+		// new an empty ec buffer for per blob
+		var err error
+		st := time.Now()
+		buffer, err = ec.NewBuffer(bsize, tactic, h.memPool)
+		if dur := time.Since(st); dur > 5*time.Millisecond {
+			span.Debug("new ec buffer", dur)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		readBuff := buffer.DataBuf[:bsize]
+		shards, err := encoder.Split(buffer.ECDataBuf)
+		if err != nil {
+			return nil, err
 		}
 
 		startRead := time.Now()
@@ -135,34 +133,25 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 			span.Infof("read blob less data want:%d but:%d", bsize, n)
 			return nil, errcode.ErrAccessReadRequestBody
 		}
-		// the last blob may not equal readSize, we should split readBuff
-		if n < readSize {
-			if err = buffer.Resize(n); err != nil {
-				return nil, err
-			}
-			readBuff = buffer.DataBuf[:n]
-			shards, err = h.encoder[selectedCodeMode].Split(buffer.ECDataBuf)
-			if err != nil {
-				return nil, err
-			}
-		}
 
 		// ec encode
-		if err = h.encoder[selectedCodeMode].Encode(shards); err != nil {
+		if err = encoder.Encode(shards); err != nil {
 			return nil, err
 		}
 
 		blobident := blobIdent{clusterID, vid, bid}
 		span.Debug("to write", blobident)
 
+		// takeover the buffer, release to pool in function writeToBlobnodes
+		takeoverBuffer := buffer
+		buffer = nil
 		startWrite := time.Now()
-		badIdx, err := h.writeToBlobnodesWithHystrix(ctx, blobident, shards)
+		err = h.writeToBlobnodesWithHystrix(ctx, blobident, shards, func() {
+			takeoverBuffer.Release()
+		})
 		putTime.IncW(time.Since(startWrite))
 		if err != nil {
 			return nil, errors.Info(err, "write to blobnode failed")
-		}
-		if len(badIdx) > 0 {
-			h.sendRepairMsgBg(ctx, clusterID, vid, bid, badIdx)
 		}
 	}
 
@@ -171,19 +160,42 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 }
 
 func (h *Handler) writeToBlobnodesWithHystrix(ctx context.Context,
-	blob blobIdent, shards [][]byte) (badIdx []uint8, err error) {
-	err = hystrix.Do(rwCommand, func() error {
-		badIdx, err = h.writeToBlobnodes(ctx, blob, shards)
-		return err
+	blob blobIdent, shards [][]byte, callback func()) error {
+	safe := make(chan struct{}, 1)
+	err := hystrix.Do(rwCommand, func() error {
+		safe <- struct{}{}
+		return h.writeToBlobnodes(ctx, blob, shards, callback)
 	}, nil)
-	return
+
+	select {
+	case <-safe:
+	default:
+		callback() // callback if fused by hystrix
+	}
+	return err
 }
 
-// writeToBlobnodes write shards to blobnode
+type shardPutStatus struct {
+	index  int
+	status bool
+}
+
+// writeToBlobnodes write shards to blobnodes.
+// takeover ec buffer release by callback.
+// return if had quorum successful shards, then wait all shards in background.
 func (h *Handler) writeToBlobnodes(ctx context.Context,
-	blob blobIdent, shards [][]byte) (badIdx []uint8, err error) {
+	blob blobIdent, shards [][]byte, callback func()) (err error) {
 	span := trace.SpanFromContextSafe(ctx)
 	clusterID, vid, bid := blob.cid, blob.vid, blob.bid
+
+	wg := &sync.WaitGroup{}
+	defer func() {
+		// waiting all shards done in background
+		go func() {
+			wg.Wait()
+			callback()
+		}()
+	}()
 
 	volume, err := h.getVolume(ctx, clusterID, vid, true)
 	if err != nil {
@@ -194,10 +206,10 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 		return
 	}
 
-	succChan := make(chan int, len(volume.Units))
+	statusCh := make(chan shardPutStatus, len(volume.Units))
 	tactic := volume.CodeMode.Tactic()
 	putQuorum := uint32(tactic.PutQuorum)
-	if num, ok := h.CodeModesPutQuorums[volume.CodeMode]; ok {
+	if num, ok := h.CodeModesPutQuorums[volume.CodeMode]; ok && num <= tactic.N+tactic.M {
 		putQuorum = uint32(num)
 	}
 
@@ -207,13 +219,14 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 	maxWrittenIndex := tactic.N + tactic.M
 	writtenNum := uint32(0)
 
-	wg := &sync.WaitGroup{}
 	wg.Add(len(volume.Units))
 	for i, unitI := range volume.Units {
 		index, unit := i, unitI
 
 		go func() {
+			status := shardPutStatus{index: index}
 			defer func() {
+				statusCh <- status
 				wg.Done()
 			}()
 
@@ -296,15 +309,13 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 					if e != nil {
 						return true, errors.Base(err, "get volume with no cache failed").Detail(e)
 					}
+
 					newUnit := latestVolume.Units[index]
-
-					oldDiskID := diskID
-					diskID = newUnit.DiskID
-					if diskID != oldDiskID {
+					if diskID != newUnit.DiskID {
+						diskID = newUnit.DiskID
 						unit = newUnit
-
-						args.DiskID = diskID
-						args.Vuid = unit.Vuid
+						args.DiskID = newUnit.DiskID
+						args.Vuid = newUnit.Vuid
 
 						needRetry = true
 						return true, err
@@ -323,7 +334,7 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 					return false, err
 				}
 
-				// others, do not retry
+				// others, do not retry this round
 				return true, err
 			})
 
@@ -339,30 +350,37 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 			if index < maxWrittenIndex {
 				atomic.AddUint32(&writtenNum, 1)
 			}
-			succChan <- index
+			status.status = true
 		}()
 	}
 
-	wg.Wait()
-	close(succChan)
-
-	succ := make(map[int]struct{}, len(volume.Units))
-	for {
-		if idx, ok := <-succChan; ok {
-			succ[idx] = struct{}{}
-		} else {
-			break
-		}
+	received := make(map[int]shardPutStatus, len(volume.Units))
+	for len(received) < len(volume.Units) && atomic.LoadUint32(&writtenNum) < putQuorum {
+		st := <-statusCh
+		received[st.index] = st
 	}
 
-	for i := range volume.Units {
-		if _, ok := succ[i]; ok {
-			continue
+	// write unaccomplished shard to repair queue
+	go func() {
+		for len(received) < len(volume.Units) {
+			st := <-statusCh
+			received[st.index] = st
 		}
-		badIdx = append(badIdx, uint8(i))
-	}
 
-	if writtenNum >= putQuorum {
+		badIdxes := make([]uint8, 0)
+		for idx := range volume.Units {
+			if st, ok := received[idx]; ok && st.status {
+				continue
+			}
+			badIdxes = append(badIdxes, uint8(idx))
+		}
+		if len(badIdxes) > 0 {
+			h.sendRepairMsgBg(ctx, blob, badIdxes)
+		}
+	}()
+
+	// return if had quorum successful shards
+	if atomic.LoadUint32(&writtenNum) >= putQuorum {
 		return
 	}
 
@@ -377,7 +395,7 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 			azFine := true
 			azDown := true
 			for _, idx := range azIndexes {
-				if _, ok := succ[idx]; !ok {
+				if st, ok := received[idx]; !ok || !st.status {
 					azFine = false
 				} else {
 					azDown = false

@@ -156,9 +156,9 @@ func TestAccessStreamGetOffset(t *testing.T) {
 	defer vuidController.Break(1005)
 
 	cases := []struct {
-		size     int
-		offset   int
-		readSize int
+		size     int64
+		offset   uint64
+		readSize uint64
 	}{
 		{12, 0, 12},
 		{12, 1, 11},
@@ -178,11 +178,11 @@ func TestAccessStreamGetOffset(t *testing.T) {
 		size := cs.size
 		data := make([]byte, size)
 		rand.Read(data)
-		loc, err := streamer.Put(ctx(), bytes.NewReader(data), int64(size), nil)
+		loc, err := streamer.Put(ctx(), bytes.NewReader(data), size, nil)
 		require.NoError(t, err)
 
 		buff := bytes.NewBuffer(nil)
-		transfer, _ := streamer.Get(ctx(), buff, *loc, uint64(cs.readSize), uint64(cs.offset))
+		transfer, _ := streamer.Get(ctx(), buff, *loc, cs.readSize, cs.offset)
 		err = transfer()
 		require.NoError(t, err)
 		require.True(t, dataEqual(data[cs.offset:cs.offset+cs.readSize], buff.Bytes()))

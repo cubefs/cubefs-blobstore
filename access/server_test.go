@@ -36,7 +36,6 @@ import (
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/uptoken"
-	"github.com/cubefs/blobstore/util/log"
 )
 
 var (
@@ -57,10 +56,6 @@ var (
 	testServer *httptest.Server
 	once       sync.Once
 )
-
-func init() {
-	log.SetOutputLevel(log.Lerror)
-}
 
 func runMockService(s *Service) string {
 	once.Do(func() {

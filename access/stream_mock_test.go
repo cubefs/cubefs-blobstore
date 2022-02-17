@@ -435,10 +435,6 @@ func initEncoder() {
 }
 
 func initEC() {
-	tacticEC6P6 := codemode.EC6P6.Tactic()
-	tacticEC6P10L2 := codemode.EC6P10L2.Tactic()
-	tacticEC15P12 := codemode.EC15P12.Tactic()
-	tacticEC16P20L2 := codemode.EC16P20L2.Tactic()
 	allCodeModes = CodeModePairs{
 		codemode.EC6P6: CodeModePair{
 			Policy: codemode.Policy{
@@ -446,28 +442,28 @@ func initEC() {
 				MaxSize:  math.MaxInt64,
 				Enable:   true,
 			},
-			Tactic: tacticEC6P6,
+			Tactic: codemode.EC6P6.Tactic(),
 		},
 		codemode.EC6P10L2: CodeModePair{
 			Policy: codemode.Policy{
 				ModeName: codemode.EC6P10L2.Name(),
 				MaxSize:  -1,
 			},
-			Tactic: tacticEC6P10L2,
+			Tactic: codemode.EC6P10L2.Tactic(),
 		},
 		codemode.EC15P12: CodeModePair{
 			Policy: codemode.Policy{
 				ModeName: codemode.EC15P12.Name(),
 				MaxSize:  -1,
 			},
-			Tactic: tacticEC15P12,
+			Tactic: codemode.EC15P12.Tactic(),
 		},
 		codemode.EC16P20L2: CodeModePair{
 			Policy: codemode.Policy{
 				ModeName: codemode.EC16P20L2.Name(),
 				MaxSize:  -1,
 			},
-			Tactic: tacticEC16P20L2,
+			Tactic: codemode.EC16P20L2.Tactic(),
 		},
 	}
 }

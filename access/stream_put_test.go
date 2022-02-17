@@ -43,7 +43,7 @@ func TestAccessStreamPutBase(t *testing.T) {
 	{
 		size := 0
 		_, err := streamer.Put(ctx(), newReader(size), int64(size), nil)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	}
 	// 1 byte
 	{
@@ -227,25 +227,23 @@ func TestAccessStreamPutShardTimeout(t *testing.T) {
 		dataShards.clean()
 	}()
 
-	startTime := time.Now()
 	size := 1 << 22
 	buff := make([]byte, size)
 	rand.Read(buff)
+	startTime := time.Now()
 	loc, err := streamer.Put(ctx(), bytes.NewReader(buff), int64(size), nil)
 	require.NoError(t, err)
 
+	// response immediately if had quorum shards
 	duration := time.Since(startTime)
-	minDuration := vuidController.duration
-	maxDuration := minDuration + minDuration/2
-	t.Log(duration, minDuration, maxDuration)
-	require.LessOrEqual(t, minDuration, duration, "less duration: ", duration)
-	require.GreaterOrEqual(t, maxDuration, duration, "greater duration: ", duration)
+	require.GreaterOrEqual(t, time.Second/2, duration, "greater duration: ", duration)
 
 	transfer, err := streamer.Get(ctx(), bytes.NewBuffer(nil), *loc, uint64(size), 0)
 	require.NoError(t, err)
 	err = transfer()
 	require.NoError(t, err)
 
+	// wait all shards if no quorum shards
 	vuidController.Block(1002)
 	{
 		startTime := time.Now()

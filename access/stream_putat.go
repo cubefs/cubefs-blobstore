@@ -46,28 +46,28 @@ func (h *Handler) PutAt(ctx context.Context, rc io.Reader,
 	if err != nil {
 		return err
 	}
+	encoder := h.encoder[volume.CodeMode]
 
 	readSize := int(size)
-	tactic := volume.CodeMode.Tactic()
 	st := time.Now()
-	buffer, err := ec.NewBuffer(readSize, tactic, h.memPool)
-	if dur := time.Since(st); dur > time.Millisecond {
+	buffer, err := ec.NewBuffer(readSize, volume.CodeMode.Tactic(), h.memPool)
+	if dur := time.Since(st); dur > 5*time.Millisecond {
 		span.Debug("new ec buffer", dur)
 	}
-	if err != nil {
-		return err
-	}
-	defer buffer.Release()
-
-	shards, err := h.encoder[volume.CodeMode].Split(buffer.ECDataBuf)
 	if err != nil {
 		return err
 	}
 
 	putTime := new(timeReadWrite)
 	defer func() {
+		buffer.Release()
 		span.AppendRPCTrackLog([]string{putTime.String()})
 	}()
+
+	shards, err := encoder.Split(buffer.ECDataBuf)
+	if err != nil {
+		return err
+	}
 
 	startRead := time.Now()
 	n, err := io.ReadFull(rc, buffer.DataBuf)
@@ -81,21 +81,22 @@ func (h *Handler) PutAt(ctx context.Context, rc io.Reader,
 		return errcode.ErrAccessReadRequestBody
 	}
 
-	if err = h.encoder[volume.CodeMode].Encode(shards); err != nil {
+	if err = encoder.Encode(shards); err != nil {
 		return err
 	}
 
 	blobident := blobIdent{clusterID, vid, bid}
 	span.Debug("to write", blobident)
 
+	takeoverBuffer := buffer
+	buffer = nil
 	startWrite := time.Now()
-	badIdx, err := h.writeToBlobnodesWithHystrix(ctx, blobident, shards)
+	err = h.writeToBlobnodesWithHystrix(ctx, blobident, shards, func() {
+		takeoverBuffer.Release()
+	})
 	putTime.IncW(time.Since(startWrite))
 	if err != nil {
 		return err
-	}
-	if len(badIdx) > 0 {
-		h.sendRepairMsgBg(ctx, clusterID, vid, bid, badIdx)
 	}
 
 	span.Debugf("putat done cluster:%d vid:%d bid:%d size:%d", clusterID, vid, bid, size)
