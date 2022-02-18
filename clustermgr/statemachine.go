@@ -45,9 +45,7 @@ func (s *Service) ApplyMemberChange(cc raftserver.ConfChange, index uint64) erro
 		Host: string(cc.Context),
 	}
 	switch cc.Type {
-	case raftpb.ConfChangeAddNode:
-	case raftpb.ConfChangeAddLearnerNode:
-	case raftpb.ConfChangeUpdateNode:
+	case raftpb.ConfChangeAddNode, raftpb.ConfChangeAddLearnerNode, raftpb.ConfChangeUpdateNode:
 		if cc.Type == raftpb.ConfChangeAddLearnerNode {
 			member.Learner = true
 		}
