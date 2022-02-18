@@ -147,7 +147,6 @@ type ChunkAPI interface {
 	HasPendingRequest() bool
 	SetStatus(status bnapi.ChunkStatus) (err error)
 	SetDirty(dirty bool)
-	MetricReport(ctx context.Context)
 }
 
 type DiskAPI interface {

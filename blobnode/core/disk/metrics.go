@@ -21,7 +21,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/cubefs/blobstore/blobnode/base"
-	"github.com/cubefs/blobstore/blobnode/core"
 	"github.com/cubefs/blobstore/common/trace"
 )
 
@@ -76,15 +75,5 @@ func (ds *DiskStorage) metricReport(ctx context.Context) {
 			"disk_id":    ds.DiskID.ToString(),
 			"item":       item,
 		}).Set(value)
-	}
-
-	chunks := make([]core.ChunkAPI, 0)
-	_ = ds.WalkChunksWithLock(ctx, func(cs core.ChunkAPI) (err error) {
-		chunks = append(chunks, cs)
-		return nil
-	})
-
-	for _, chunk := range chunks {
-		chunk.MetricReport(ctx)
 	}
 }
