@@ -36,7 +36,6 @@ import (
 
 const (
 	collectBalanceTaskPauseS = 5
-	clearBalanceTaskPauseS   = 30
 )
 
 var (
@@ -64,9 +63,8 @@ type BalanceMgr struct {
 
 	taskStatsMgr *base.TaskStatsMgr
 
-	closeOnce   *sync.Once
-	collectDone chan struct{}
-	clearDone   chan struct{}
+	closeOnce *sync.Once
+	closeDone chan struct{}
 }
 
 // NewBalanceMgr returns balance manager
@@ -89,9 +87,8 @@ func NewBalanceMgr(
 		clusterTopoMgr: clusterTopMgr,
 		cfg:            conf,
 
-		closeOnce:   &sync.Once{},
-		collectDone: make(chan struct{}, 1),
-		clearDone:   make(chan struct{}, 1),
+		closeOnce: &sync.Once{},
+		closeDone: make(chan struct{}),
 	}
 	mgr.migrateMgr = NewMigrateMgr(
 		cmCli,
@@ -120,8 +117,19 @@ func (mgr *BalanceMgr) Run() {
 	go mgr.clearTaskLoop()
 }
 
+// Close close balance task manager
+func (mgr *BalanceMgr) Close() {
+	mgr.clusterTopoMgr.Close()
+
+	mgr.closeOnce.Do(func() {
+		close(mgr.closeDone)
+	})
+}
+
 func (mgr *BalanceMgr) collectTaskLoop() {
 	t := time.NewTicker(time.Duration(mgr.cfg.CollectTaskIntervalS) * time.Second)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-t.C:
@@ -131,8 +139,7 @@ func (mgr *BalanceMgr) collectTaskLoop() {
 				log.Debugf("no task to collect %v, sleep %d second", err, collectBalanceTaskPauseS)
 				time.Sleep(time.Duration(collectBalanceTaskPauseS) * time.Second)
 			}
-		case <-mgr.collectDone:
-			t.Stop()
+		case <-mgr.closeDone:
 			return
 		}
 	}
@@ -247,14 +254,14 @@ func (mgr *BalanceMgr) selectBalanceVunit(ctx context.Context, diskID proto.Disk
 
 func (mgr *BalanceMgr) clearTaskLoop() {
 	t := time.NewTicker(time.Duration(mgr.cfg.CheckTaskIntervalS) * time.Second)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-t.C:
 			mgr.taskSwitch.WaitEnable()
 			mgr.ClearFinishedTask()
-			time.Sleep(time.Duration(clearBalanceTaskPauseS) * time.Second)
-		case <-mgr.clearDone:
-			t.Stop()
+		case <-mgr.closeDone:
 			return
 		}
 	}
@@ -343,16 +350,6 @@ func (mgr *BalanceMgr) GetTaskStats() (finish, dataSize, shardCnt [counter.SLOT]
 // StatQueueTaskCnt returns queue task stat
 func (mgr *BalanceMgr) StatQueueTaskCnt() (inited, prepared, completed int) {
 	return mgr.migrateMgr.StatQueueTaskCnt()
-}
-
-// Close close balance task manager
-func (mgr *BalanceMgr) Close() {
-	mgr.clusterTopoMgr.Close()
-
-	mgr.closeOnce.Do(func() {
-		mgr.collectDone <- struct{}{}
-		mgr.clearDone <- struct{}{}
-	})
 }
 
 func (mgr *BalanceMgr) genUniqTaskID(vid proto.Vid) string {

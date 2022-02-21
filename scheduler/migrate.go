@@ -37,10 +37,6 @@ const (
 	prepareMigrateTaskIntervalS = 1
 	finishMigrateTaskIntervalS  = 1
 	prepareTaskPauseS           = 2
-
-	defaultRetryDelayS           = 60
-	defaultCancelPunishDurationS = 60
-	defaultWorkQueueSize         = 10
 )
 
 // IMigrateCmCli define the interface of clustermgr used by migrate
@@ -146,19 +142,6 @@ func NewMigrateMgr(
 	conf *MigrateConfig,
 	taskType string,
 ) *MigrateMgr {
-	if conf.CancelPunishDurationS <= 0 {
-		conf.CancelPunishDurationS = defaultCancelPunishDurationS
-	}
-	if conf.PrepareQueueRetryDelayS <= 0 {
-		conf.PrepareQueueRetryDelayS = defaultRetryDelayS
-	}
-	if conf.FinishQueueRetryDelayS <= 0 {
-		conf.FinishQueueRetryDelayS = defaultRetryDelayS
-	}
-	if conf.WorkQueueSize <= 0 {
-		conf.WorkQueueSize = defaultWorkQueueSize
-	}
-
 	return &MigrateMgr{
 		taskType:           taskType,
 		diskMigratingVuids: newDiskMigratingVuids(),

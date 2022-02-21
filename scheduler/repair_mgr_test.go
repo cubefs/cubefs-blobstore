@@ -469,10 +469,11 @@ func initRepairMgrWithErr(updateErr error, updateErrCnt int) (*RepairMgr, error)
 
 func initRepairMgr() (*RepairMgr, error) {
 	tmpCfg := RepairMgrCfg{}
-	tmpCfg.AcquireBrokenDurationS = 1
 	tmpCfg.WorkQueueSize = 10
 	tmpCfg.CancelPunishDurationS = 1
 	tmpCfg.FinishQueueRetryDelayS = 1
+	tmpCfg.CollectTaskIntervalS = 1
+	tmpCfg.CheckTaskIntervalS = 1
 	tmpCfg.PrepareQueueRetryDelayS = 1
 	tbl := newMockTbl(nil, newMockVolInfoMap())
 	mockCmCli := NewMockCmClient(nil, tbl)
@@ -861,6 +862,7 @@ func TestRun(t *testing.T) {
 	newDst := client.AllocVunitInfo{}
 	err = mgr.ReclaimTask(context.Background(), "z0", "", nil, proto.VunitLocation{}, &newDst)
 	require.Error(t, err)
+	mgr.Close()
 }
 
 func TestPrepareErr(t *testing.T) {

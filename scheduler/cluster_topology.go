@@ -86,7 +86,7 @@ type ClusterTopologyMgr struct {
 	taskStatsMgr *base.ClusterTopologyStatsMgr
 
 	closeOnce *sync.Once
-	done      chan struct{}
+	closeDone chan struct{}
 }
 
 // NewClusterTopologyMgr returns cluster topology manager
@@ -107,7 +107,7 @@ func NewClusterTopologyMgr(client TopologyCmCli, conf *clusterTopoConf) *Cluster
 		},
 		taskStatsMgr: base.NewClusterTopologyStatisticsMgr(conf.ClusterID, conf.FreeChunkCounterBuckets),
 
-		done:      make(chan struct{}, 1),
+		closeDone: make(chan struct{}),
 		closeOnce: &sync.Once{},
 	}
 	go mgr.loopUpdate()
@@ -116,12 +116,13 @@ func NewClusterTopologyMgr(client TopologyCmCli, conf *clusterTopoConf) *Cluster
 
 func (m *ClusterTopologyMgr) loopUpdate() {
 	t := time.NewTicker(m.updateInterval)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-t.C:
 			m.updateClusterTopo()
-		case <-m.done:
-			t.Stop()
+		case <-m.closeDone:
 			return
 		}
 	}
@@ -159,7 +160,7 @@ func (m *ClusterTopologyMgr) ReportFreeChunkCnt(disk *api.DiskInfoSimple) {
 // Close stop cluster topology manager
 func (m *ClusterTopologyMgr) Close() {
 	m.closeOnce.Do(func() {
-		m.done <- struct{}{}
+		close(m.closeDone)
 	})
 }
 

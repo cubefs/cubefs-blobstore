@@ -203,7 +203,7 @@ func (c *Config) checkAndFixBalanceCfg() {
 		c.BalanceTask.BalanceDiskCntLimit = 100
 	}
 	if c.BalanceTask.MaxDiskFreeChunkCnt <= 0 {
-		c.BalanceTask.MaxDiskFreeChunkCnt = 100
+		c.BalanceTask.MaxDiskFreeChunkCnt = 1024
 	}
 	if c.BalanceTask.MinDiskFreeChunkCnt <= 0 {
 		c.BalanceTask.MinDiskFreeChunkCnt = 20
@@ -414,6 +414,8 @@ func (svr *Service) Run() {
 // Close close service safe
 func (svr *Service) Close() {
 	svr.balanceMgr.Close()
+	svr.repairMgr.Close()
+	svr.diskDropMgr.Close()
 }
 
 // NewHandler returns app server handler

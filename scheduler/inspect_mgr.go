@@ -33,13 +33,10 @@ import (
 )
 
 const (
-	minVid                   = 1
+	minVid                   = proto.Vid(1)
 	defaultPrepareFailSleepS = 10
-	defaultTimeoutMs         = 1000
-
-	zeroVid = proto.Vid(0)
-
-	defaultDuplicateCnt = 10000000
+	zeroVid                  = proto.Vid(0)
+	defaultDuplicateCnt      = 10000000
 )
 
 // manager of volumes inspect
@@ -201,10 +198,6 @@ func NewInspectMgr(
 	ts, err := switchMgr.AddSwitch(taskswitch.VolInspectSwitchName)
 	if err != nil {
 		return nil, err
-	}
-
-	if cfg.TimeoutMs <= 0 {
-		cfg.TimeoutMs = defaultTimeoutMs
 	}
 
 	return &InspectMgr{

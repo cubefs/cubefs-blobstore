@@ -107,7 +107,7 @@ func initBalanceMgr(respErr error, baseVid proto.Vid) (mgr *BalanceMgr, err erro
 	switchMgr := taskswitch.NewSwitchMgr(mockCmCli)
 	mockTinkerCli := NewTinkerMockClient(respErr)
 	topoMgr := &ClusterTopologyMgr{
-		done:         make(chan struct{}, 1),
+		closeDone:    make(chan struct{}),
 		closeOnce:    &sync.Once{},
 		taskStatsMgr: base.NewClusterTopologyStatisticsMgr(1, []float64{}),
 	}
@@ -290,6 +290,7 @@ func testTaskLoop(t *testing.T, mgr *BalanceMgr) {
 	mgr.Run()
 	time.Sleep(time.Duration(mgr.cfg.CollectTaskIntervalS) * time.Second)
 	time.Sleep(time.Duration(mgr.cfg.CheckTaskIntervalS) * time.Second)
+	mgr.Close()
 }
 
 func testRespWithErr(t *testing.T, expected, err error) {

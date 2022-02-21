@@ -37,11 +37,8 @@ import (
 // disk repair
 
 const (
-	prepareIntervalS                   = 1 * time.Second
-	finishIntervalS                    = 5 * time.Second
-	checkRepairedIntervalS             = 20 * time.Second
-	defaultRepairCancelPunishDurationS = 60
-	defaultTaskQueueRetryDelay         = 10 * time.Second
+	prepareIntervalS = 1
+	finishIntervalS  = 5
 )
 
 type repairCmCli interface {
@@ -57,8 +54,7 @@ type repairCmCli interface {
 
 // RepairMgrCfg repair manager config
 type RepairMgrCfg struct {
-	AcquireBrokenDurationS int             `json:"acquire_broken_duration_s"`
-	ClusterID              proto.ClusterID `json:"cluster_id"`
+	ClusterID proto.ClusterID `json:"cluster_id"`
 	base.TaskCommonConfig
 }
 
@@ -85,6 +81,9 @@ type RepairMgr struct {
 
 	hasRevised bool
 	RepairMgrCfg
+
+	closeOnce *sync.Once
+	closeDone chan struct{}
 }
 
 // NewRepairMgr returns repair manager
@@ -95,22 +94,20 @@ func NewRepairMgr(cfg *RepairMgrCfg, switchMgr *taskswitch.SwitchMgr, taskTbl db
 		return nil, err
 	}
 
-	if cfg.CancelPunishDurationS <= 0 {
-		cfg.CancelPunishDurationS = defaultRepairCancelPunishDurationS
-	}
-
-	CancelPunishDuration := time.Duration(cfg.CancelPunishDurationS) * time.Second
 	mgr := &RepairMgr{
 		taskTbl:      taskTbl,
-		prepareQueue: base.NewTaskQueue(defaultTaskQueueRetryDelay),
-		workQueue:    base.NewWorkerTaskQueue(CancelPunishDuration),
-		finishQueue:  base.NewTaskQueue(defaultTaskQueueRetryDelay),
+		prepareQueue: base.NewTaskQueue(time.Duration(cfg.PrepareQueueRetryDelayS) * time.Second),
+		workQueue:    base.NewWorkerTaskQueue(time.Duration(cfg.CancelPunishDurationS) * time.Second),
+		finishQueue:  base.NewTaskQueue(time.Duration(cfg.FinishQueueRetryDelayS) * time.Second),
 
 		cmCli:        cmCli,
 		taskSwitch:   ts,
 		RepairMgrCfg: *cfg,
 
 		hasRevised: false,
+
+		closeOnce: &sync.Once{},
+		closeDone: make(chan struct{}),
 	}
 	mgr.taskStatsMgr = base.NewTaskStatsMgrAndRun(cfg.ClusterID, proto.RepairTaskType, mgr)
 	return mgr, nil
@@ -173,11 +170,25 @@ func (mgr *RepairMgr) Run() {
 	go mgr.checkRepairedAndClearLoop()
 }
 
+// Close close repair task manager
+func (mgr *RepairMgr) Close() {
+	mgr.closeOnce.Do(func() {
+		close(mgr.closeDone)
+	})
+}
+
 func (mgr *RepairMgr) collectTaskLoop() {
+	t := time.NewTicker(time.Duration(mgr.CollectTaskIntervalS) * time.Second)
+	defer t.Stop()
+
 	for {
-		mgr.taskSwitch.WaitEnable()
-		mgr.collectTask()
-		time.Sleep(base.CollectIntervalS)
+		select {
+		case <-t.C:
+			mgr.taskSwitch.WaitEnable()
+			mgr.collectTask()
+		case <-mgr.closeDone:
+			return
+		}
 	}
 }
 
@@ -354,8 +365,6 @@ func (mgr *RepairMgr) acquireBrokenDisk(ctx context.Context) (*client.DiskInfoSi
 	return mgr.brokenDisk, nil
 }
 
-//-----------------------------------------------------------------------
-
 func (mgr *RepairMgr) prepareTaskLoop() {
 	for {
 		mgr.taskSwitch.WaitEnable()
@@ -367,7 +376,7 @@ func (mgr *RepairMgr) prepareTaskLoop() {
 
 		err := mgr.popTaskAndPrepare()
 		if err == base.ErrNoTaskInQueue {
-			time.Sleep(prepareIntervalS)
+			time.Sleep(time.Duration(prepareIntervalS) * time.Second)
 		}
 	}
 }
@@ -479,7 +488,7 @@ func (mgr *RepairMgr) finishTaskLoop() {
 		mgr.taskSwitch.WaitEnable()
 		err := mgr.popTaskAndFinish()
 		if err == base.ErrNoTaskInQueue {
-			time.Sleep(finishIntervalS)
+			time.Sleep(time.Duration(finishIntervalS) * time.Second)
 		}
 	}
 }
@@ -586,10 +595,17 @@ func (mgr *RepairMgr) handleUpdateVolMappingFail(ctx context.Context, task *prot
 }
 
 func (mgr *RepairMgr) checkRepairedAndClearLoop() {
+	t := time.NewTicker(time.Duration(mgr.CheckTaskIntervalS) * time.Second)
+	defer t.Stop()
+
 	for {
-		mgr.taskSwitch.WaitEnable()
-		mgr.checkRepairedAndClear()
-		time.Sleep(checkRepairedIntervalS)
+		select {
+		case <-t.C:
+			mgr.taskSwitch.WaitEnable()
+			mgr.checkRepairedAndClear()
+		case <-mgr.closeDone:
+			return
+		}
 	}
 }
 

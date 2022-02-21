@@ -31,8 +31,6 @@ import (
 	"github.com/cubefs/blobstore/util/log"
 )
 
-const checkDroppedIntervalS = 20 * time.Second
-
 // DiskDropMgrConfig disk drop manager config
 type DiskDropMgrConfig struct {
 	MigrateConfig
@@ -56,6 +54,9 @@ type DiskDropMgr struct {
 	hasRevised     bool
 	taskStatsMgr   *base.TaskStatsMgr
 	cfg            *DiskDropMgrConfig
+
+	closeOnce *sync.Once
+	closeDone chan struct{}
 }
 
 // NewDiskDropMgr returns disk drop manager
@@ -75,6 +76,8 @@ func NewDiskDropMgr(
 		taskSwitch: taskSwitch,
 		cmCli:      cmCli,
 		cfg:        conf,
+		closeOnce:  &sync.Once{},
+		closeDone:  make(chan struct{}),
 	}
 
 	mgr.migrateMgr = NewMigrateMgr(cmCli,
@@ -113,17 +116,31 @@ func (mgr *DiskDropMgr) Load() (err error) {
 
 // Run run disk drop task
 func (mgr *DiskDropMgr) Run() {
-	go mgr.CollectTaskLoop()
+	go mgr.collectTaskLoop()
 	mgr.migrateMgr.Run()
 	go mgr.checkDroppedAndClearLoop()
 }
 
-// CollectTaskLoop collect disk drop task loop
-func (mgr *DiskDropMgr) CollectTaskLoop() {
+// Close close repair task manager
+func (mgr *DiskDropMgr) Close() {
+	mgr.closeOnce.Do(func() {
+		close(mgr.closeDone)
+	})
+}
+
+// collectTaskLoop collect disk drop task loop
+func (mgr *DiskDropMgr) collectTaskLoop() {
+	t := time.NewTicker(time.Duration(mgr.cfg.CollectTaskIntervalS) * time.Second)
+	defer t.Stop()
+
 	for {
-		mgr.taskSwitch.WaitEnable()
-		mgr.collectTask()
-		time.Sleep(base.CollectIntervalS)
+		select {
+		case <-t.C:
+			mgr.taskSwitch.WaitEnable()
+			mgr.collectTask()
+		case <-mgr.closeDone:
+			return
+		}
 	}
 }
 
@@ -268,10 +285,17 @@ func (mgr *DiskDropMgr) acquireDropDisk(ctx context.Context) (*client.DiskInfoSi
 }
 
 func (mgr *DiskDropMgr) checkDroppedAndClearLoop() {
+	t := time.NewTicker(time.Duration(mgr.cfg.CheckTaskIntervalS) * time.Second)
+	defer t.Stop()
+
 	for {
-		mgr.taskSwitch.WaitEnable()
-		mgr.checkDroppedAndClear()
-		time.Sleep(checkDroppedIntervalS)
+		select {
+		case <-t.C:
+			mgr.taskSwitch.WaitEnable()
+			mgr.checkDroppedAndClear()
+		case <-mgr.closeDone:
+			return
+		}
 	}
 }
 

@@ -377,6 +377,7 @@ func TestMigrateMgr(t *testing.T) {
 	testMigrateTaskChange(t, mgr)
 
 	conf = &MigrateConfig{}
+	conf.CheckAndFix()
 	mgr, err = initMigrateMgr(nil, conf)
 	require.NoError(t, err)
 	testPrepareTaskErr(t, mgr)

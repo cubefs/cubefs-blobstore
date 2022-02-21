@@ -84,6 +84,7 @@ func testDiskDropMgr(t *testing.T) {
 	diskDropMgr.AcquireTask(context.Background(), "")
 	diskDropMgr.ReclaimTask(context.Background(), "", "", nil, proto.VunitLocation{}, &client.AllocVunitInfo{})
 	diskDropMgr.ReportWorkerTaskStats("", proto.TaskStatistics{}, 0, 0)
+	diskDropMgr.Close()
 }
 
 func MockDiskDropTasks() map[string]*proto.MigrateTask {

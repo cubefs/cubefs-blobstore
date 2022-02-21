@@ -80,6 +80,7 @@ func init() {
 	balanceConf := &BalanceMgrConfig{
 		MigrateConfig: migrateConf,
 	}
+	balanceConf.CheckAndFix()
 	balanceMgr, err := NewBalanceMgr(clusterMgrCli, tinkerCli, switchMgr, topologyMgr, serviceRegisterTbl,
 		balanceTbl, balanceConf)
 	if err != nil {
@@ -91,6 +92,8 @@ func init() {
 	// init disk drop manager
 	diskDropTbl := newDiskDropTbl()
 	diskDropConf := &DiskDropMgrConfig{}
+	diskDropConf.CheckAndFix()
+
 	diskDropMgr, err := NewDiskDropMgr(clusterMgrCli, tinkerCli, switchMgr, serviceRegisterTbl,
 		diskDropTbl, diskDropConf)
 	if err != nil {

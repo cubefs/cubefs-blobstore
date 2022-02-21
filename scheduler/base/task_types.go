@@ -16,7 +16,6 @@ package base
 
 import (
 	"errors"
-	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -34,8 +33,6 @@ const (
 const (
 	// EmptyDiskID empty diskID
 	EmptyDiskID = 0
-	// CollectIntervalS collect interval second
-	CollectIntervalS = 5 * time.Second
 )
 
 // err use for task
