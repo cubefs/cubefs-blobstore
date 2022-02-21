@@ -102,6 +102,14 @@ type StreamHandler interface {
 
 	// Delete delete all blobs in this location
 	Delete(ctx context.Context, location *access.Location) error
+
+	// Admin returns internal admin interface.
+	Admin() interface{}
+}
+
+type streamAdmin struct {
+	config  StreamConfig
+	memPool *resourcepool.MemPool
 }
 
 // StreamConfig access stream handler config
@@ -298,6 +306,14 @@ func (h *Handler) Delete(ctx context.Context, location *access.Location) error {
 	span := trace.SpanFromContextSafe(ctx)
 	span.Debugf("to delete %+v", location)
 	return h.clearGarbage(ctx, location)
+}
+
+// Admin returns internal admin interface.
+func (h *Handler) Admin() interface{} {
+	return &streamAdmin{
+		config:  h.StreamConfig,
+		memPool: h.memPool,
+	}
 }
 
 func (h *Handler) sendRepairMsgBg(ctx context.Context, blob blobIdent, badIdxes []uint8) {

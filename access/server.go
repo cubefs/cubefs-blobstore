@@ -16,7 +16,6 @@ package access
 
 import (
 	"crypto/sha1"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -31,6 +30,7 @@ import (
 	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/profile"
 	"github.com/cubefs/blobstore/common/proto"
+	"github.com/cubefs/blobstore/common/resourcepool"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
 	"github.com/cubefs/blobstore/common/uptoken"
@@ -82,6 +82,11 @@ func initWithRegionMagic(regionMagic string) {
 	b := sha1.Sum([]byte(regionMagic))
 	initTokenSecret(b[:8])
 	initLocationSecret(b[:8])
+}
+
+type accessStatus struct {
+	Limit Status              `json:"limit"`
+	Pool  resourcepool.Status `json:"pool"`
 }
 
 // Config service configs
@@ -141,13 +146,14 @@ func (s *Service) RegisterService() {
 // RegisterStatus register status handler to profile
 func (s *Service) RegisterStatus() {
 	profile.HandleFunc(http.MethodGet, "/access/status", func(c *rpc.Context) {
-		status := s.limiter.Status()
-		data, err := json.MarshalIndent(status, "", "    ")
-		if err != nil {
-			c.RespondError(err)
-			return
+		status := new(accessStatus)
+		status.Limit = s.limiter.Status()
+		if sa := s.streamHandler.Admin(); sa != nil {
+			if admin, ok := sa.(*streamAdmin); ok {
+				status.Pool = admin.memPool.Status()
+			}
 		}
-		c.RespondWith(http.StatusOK, rpc.MIMEJSON, data)
+		c.RespondJSON(status)
 	})
 }
 

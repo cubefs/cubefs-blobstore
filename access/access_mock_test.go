@@ -38,6 +38,20 @@ func (m *MockStreamHandler) EXPECT() *MockStreamHandlerMockRecorder {
 	return m.recorder
 }
 
+// Admin mocks base method.
+func (m *MockStreamHandler) Admin() interface{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Admin")
+	ret0, _ := ret[0].(interface{})
+	return ret0
+}
+
+// Admin indicates an expected call of Admin.
+func (mr *MockStreamHandlerMockRecorder) Admin() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Admin", reflect.TypeOf((*MockStreamHandler)(nil).Admin))
+}
+
 // Alloc mocks base method.
 func (m *MockStreamHandler) Alloc(arg0 context.Context, arg1 uint64, arg2 uint32, arg3 proto.ClusterID, arg4 codemode.CodeMode) (*access0.Location, error) {
 	m.ctrl.T.Helper()
