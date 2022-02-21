@@ -35,29 +35,31 @@ type Pool interface {
 	Put(x interface{})
 	Cap() int
 	Len() int
+	// Idle return cached idle objects in pool.
+	Idle() int
 }
 
+// sync pool Idle return -1 if no limit
 type pool struct {
-	sp      sync.Pool
-	cap     int32
-	current int32
+	sp       sync.Pool
+	capacity int32
+	current  int32
 }
 
 // NewPool return Pool with capacity, no limit if capacity is negative
-func NewPool(new func() interface{}, cap int) Pool {
+func NewPool(newFunc func() interface{}, capacity int) Pool {
 	return &pool{
-		sp:      sync.Pool{New: new},
-		cap:     int32(cap),
-		current: int32(0),
+		sp:       sync.Pool{New: newFunc},
+		capacity: int32(capacity),
+		current:  int32(0),
 	}
 }
 
 func (p *pool) Get() (interface{}, error) {
-	if p.cap >= 0 {
-		if current := atomic.AddInt32(&p.current, 1); current > p.cap {
-			atomic.AddInt32(&p.current, -1)
-			return nil, ErrPoolLimit
-		}
+	current := atomic.AddInt32(&p.current, 1)
+	if p.capacity >= 0 && current > p.capacity {
+		atomic.AddInt32(&p.current, -1)
+		return nil, ErrPoolLimit
 	}
 	return p.sp.Get(), nil
 }
@@ -68,9 +70,16 @@ func (p *pool) Put(x interface{}) {
 }
 
 func (p *pool) Cap() int {
-	return int(p.cap)
+	return int(p.capacity)
 }
 
 func (p *pool) Len() int {
 	return int(atomic.LoadInt32(&p.current))
+}
+
+func (p *pool) Idle() int {
+	if p.capacity < 0 {
+		return -1
+	}
+	return p.Cap() - p.Len()
 }

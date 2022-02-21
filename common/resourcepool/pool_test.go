@@ -31,18 +31,17 @@ func TestPoolBase(t *testing.T) {
 		return 1
 	}, 2)
 
-	cap := p.Cap()
-	require.Equal(t, 2, cap)
-	len := p.Len()
-	require.Equal(t, 0, len)
+	require.Equal(t, 2, p.Cap())
+	require.Equal(t, 0, p.Len())
+	require.Equal(t, 2, p.Idle())
 
 	_, err := p.Get()
 	require.NoError(t, err)
 	_, err = p.Get()
 	require.NoError(t, err)
 
-	len = p.Len()
-	require.Equal(t, 2, len)
+	require.Equal(t, 2, p.Len())
+	require.Equal(t, 0, p.Idle())
 
 	_, err = p.Get()
 	require.Equal(t, rp.ErrPoolLimit, err)
@@ -60,6 +59,8 @@ func TestPoolNoLimit(t *testing.T) {
 			return 1
 		}, 0)
 		require.Equal(t, 0, p.Cap())
+		require.Equal(t, 0, p.Len())
+		require.Equal(t, 0, p.Idle())
 
 		_, err := p.Get()
 		require.ErrorIs(t, rp.ErrPoolLimit, err)
@@ -69,9 +70,11 @@ func TestPoolNoLimit(t *testing.T) {
 			return 1
 		}, -10)
 		require.Equal(t, -10, p.Cap())
+		require.Equal(t, 0, p.Len())
+		require.Equal(t, -1, p.Idle())
 
 		tasks := make([]func() error, 0, 10000)
-		for i := 0; i < 10000; i++ {
+		for range [10000]struct{}{} {
 			tasks = append(tasks, func() error {
 				_, err := p.Get()
 				return err

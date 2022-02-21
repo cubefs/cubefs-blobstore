@@ -27,12 +27,12 @@ import (
 
 const maxMemorySize = 1 << 32 // 4G
 
-var releaseInterval time.Duration = time.Second * 30
+var releaseInterval int64 = int64(time.Minute) * 2
 
 // SetReleaseInterval set release interval duration
 func SetReleaseInterval(duration time.Duration) {
 	if duration > time.Millisecond*100 {
-		releaseInterval = duration
+		atomic.StoreInt64(&releaseInterval, int64(duration))
 	}
 }
 
@@ -71,7 +71,7 @@ func NewChanPool(newFunc func() []byte, capacity int) Pool {
 }
 
 // loopRelease release redundant buffers in chan.
-// check EMA concurrence per one-tenth of release interval duration.
+// check EMA concurrence per round of release interval duration.
 // release the redundant buffers per release interval duration.
 //
 // reserve 30% redundancy of capacity
@@ -83,8 +83,10 @@ func NewChanPool(newFunc func() []byte, capacity int) Pool {
 //  | to release  |          buffers keep in memory           |
 //  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 func (p *chPool) loopRelease() {
-	timer := time.NewTicker(releaseInterval / 10)
-	defer timer.Stop()
+	const emaRound = 5
+
+	ticker := time.NewTicker(time.Duration(atomic.LoadInt64(&releaseInterval)) / emaRound)
+	defer ticker.Stop()
 
 	var (
 		turn     int
@@ -100,10 +102,10 @@ func (p *chPool) loopRelease() {
 					return
 				}
 			}
-		case <-timer.C:
+		case <-ticker.C:
 			nowConc := atomic.LoadInt32(&p.concurrence)
 			capacity = ema(nowConc, capacity)
-			if turn = (turn + 1) % 10; turn != 0 {
+			if turn = (turn + 1) % emaRound; turn != 0 {
 				continue
 			}
 
@@ -112,11 +114,12 @@ func (p *chPool) loopRelease() {
 			if redundant <= 0 {
 				continue
 			}
-			for ii := 0; ii < redundant; ii++ {
+			has := true
+			for ii := 0; has && ii < redundant; ii++ {
 				select {
 				case <-p.chBuffer:
 				default:
-					break
+					has = false
 				}
 			}
 		}
@@ -153,6 +156,10 @@ func (p *chPool) Cap() int {
 
 func (p *chPool) Len() int {
 	return int(atomic.LoadInt32(&p.concurrence))
+}
+
+func (p *chPool) Idle() int {
+	return len(p.chBuffer)
 }
 
 func ema(val, lastVal int32) int32 {

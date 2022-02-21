@@ -16,6 +16,7 @@ package resourcepool_test
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -205,6 +206,31 @@ func TestMemPoolZero(t *testing.T) {
 		pool.Zero(buf)
 		require.Equal(t, cs.to-cs.from, len(buf))
 		require.Equal(t, zero[cs.from:cs.to], buf)
+	}
+}
+
+func TestMemPoolStatus(t *testing.T) {
+	{
+		pool := rp.NewMemPool(nil)
+		require.NotNil(t, pool)
+		t.Logf("status empty: %+v", pool.Status())
+	}
+	{
+		classes := map[int]int{kb: 2, mb: 1}
+
+		pool := rp.NewMemPool(classes)
+		require.NotNil(t, pool)
+		t.Logf("status init: %+v", pool.Status())
+
+		_, err := pool.Get(mb)
+		require.NoError(t, err)
+		bufk, err := pool.Get(kb)
+		require.NoError(t, err)
+		t.Logf("status running: %+v", pool.Status())
+
+		pool.Put(bufk)
+		data, _ := json.Marshal(pool.Status())
+		t.Logf("status json: %s", string(data))
 	}
 }
 

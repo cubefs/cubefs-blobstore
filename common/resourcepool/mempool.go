@@ -36,6 +36,17 @@ type MemPool struct {
 	poolSize []int
 }
 
+// Status memory pools status
+type Status []PoolStatus
+
+// PoolStatus status of the pool
+type PoolStatus struct {
+	Size     int `json:"size"`
+	Capacity int `json:"capacity"`
+	Running  int `json:"running"`
+	Idle     int `json:"idle"`
+}
+
 // NewMemPool new MemPool with self-defined size-class and capacity
 func NewMemPool(sizeClasses map[int]int) *MemPool {
 	pool := make([]Pool, 0, len(sizeClasses))
@@ -104,6 +115,21 @@ func (p *MemPool) Put(b []byte) error {
 // Zero clean up the buffer b to zero bytes
 func (p *MemPool) Zero(b []byte) {
 	Zero(b)
+}
+
+// Status returns status of memory pool
+func (p *MemPool) Status() Status {
+	st := make(Status, len(p.poolSize))
+	for idx, size := range p.poolSize {
+		pool := p.pool[idx]
+		st[idx] = PoolStatus{
+			Size:     size,
+			Capacity: pool.Cap(),
+			Running:  pool.Len(),
+			Idle:     pool.Idle(),
+		}
+	}
+	return st
 }
 
 // Zero clean up the buffer b to zero bytes

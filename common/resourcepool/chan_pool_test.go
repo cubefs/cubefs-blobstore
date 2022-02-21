@@ -24,8 +24,8 @@ import (
 )
 
 func TestChanPoolRelease(t *testing.T) {
-	rp.SetReleaseInterval(time.Second)
-	defer rp.SetReleaseInterval(time.Second * 30)
+	rp.SetReleaseInterval(200 * time.Millisecond)
+	defer rp.SetReleaseInterval(time.Minute * 2)
 
 	p := rp.NewChanPool(func() []byte {
 		return make([]byte, 1024)
@@ -39,7 +39,7 @@ func TestChanPoolRelease(t *testing.T) {
 			p.Put(buf)
 		}(i)
 	}
-	time.Sleep(time.Millisecond * 3200)
+	time.Sleep(time.Second)
 }
 
 func TestChanPoolBase(t *testing.T) {
@@ -50,25 +50,28 @@ func TestChanPoolBase(t *testing.T) {
 	}, 2)
 
 	require.Equal(t, 2, p.Cap())
-	len := p.Len()
-	require.Equal(t, 0, len)
+	require.Equal(t, 0, p.Len())
+	require.Equal(t, 0, p.Idle())
 
 	_, err := p.Get()
 	require.NoError(t, err)
 	_, err = p.Get()
 	require.NoError(t, err)
 
-	len = p.Len()
-	require.Equal(t, 2, len)
+	require.Equal(t, 2, p.Cap())
+	require.Equal(t, 2, p.Len())
+	require.Equal(t, 0, p.Idle())
 
 	buf, err := p.Get()
 	require.NoError(t, err)
 	require.Equal(t, 3, makeN)
 
 	p.Put(buf)
+	require.Equal(t, 1, p.Idle())
 	_, err = p.Get()
 	require.NoError(t, err)
 	require.Equal(t, 3, makeN)
+	require.Equal(t, 0, p.Idle())
 }
 
 func TestChanPoolNoLimit(t *testing.T) {
@@ -89,12 +92,14 @@ func TestChanPoolNoLimit(t *testing.T) {
 			return make([]byte, 1024)
 		}, -1)
 		require.Equal(t, -1, p.Cap())
+		require.Equal(t, 0, p.Idle())
 
 		for range [1000]struct{}{} {
 			buf, err := p.Get()
 			require.NoError(t, err)
 			p.Put(buf)
 		}
+		require.Equal(t, 1, p.Idle())
 	}
 }
 
