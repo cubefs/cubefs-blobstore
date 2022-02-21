@@ -274,6 +274,8 @@ func (s *raftServer) Status() Status {
 			PendingSnapshot: pr.PendingSnapshot,
 			RecentActive:    pr.RecentActive,
 			IsLearner:       pr.IsLearner,
+			InflightFull:    pr.Inflights.Full(),
+			InflightCount:   pr.Inflights.Count(),
 		}
 		status.Peers = append(status.Peers, peer)
 	}

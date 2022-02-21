@@ -40,6 +40,8 @@ type Peer struct {
 	PendingSnapshot uint64 `json:"pendingSnapshot"`
 	RecentActive    bool   `json:"active"`
 	IsLearner       bool   `json:"isLearner"`
+	InflightFull    bool   `json:"isInflightFull"`
+	InflightCount   int    `json:"inflightCount"`
 }
 
 type Status struct {
