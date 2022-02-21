@@ -142,14 +142,11 @@ func NewProfileHandler(addr string) rpc.ProgressHandler {
 
 	httpRouter.Router.HandlerFunc(http.MethodGet, "/", index)
 	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
-	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
-	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/profile", pprof.Profile)
-	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/symbol", pprof.Symbol)
-	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/trace", pprof.Trace)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/pprof/:key", secondIndex)
 	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/vars", expvar.Handler().ServeHTTP)
 	httpRouter.Router.HandlerFunc(http.MethodGet, "/metrics", promhttp.Handler().ServeHTTP)
-	httpRouter.Handle(http.MethodGet, "/debug/var/", oneExpvar)
-	httpRouter.Handle(http.MethodGet, "/debug/var/:key", oneExpvar, rpc.OptArgsURI(), rpc.OptArgsQuery())
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/var/", oneExpvar)
+	httpRouter.Router.HandlerFunc(http.MethodGet, "/debug/var/:key", oneExpvar)
 
 	router.mu.Lock()
 	router.vars = []string{
@@ -190,18 +187,35 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 // handler path /debug/var/<var>, get one expvar
-func oneExpvar(ctx *rpc.Context) {
-	key := ctx.Request.URL.Path[len("/debug/var/"):]
+func oneExpvar(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Path[len("/debug/var/"):]
 	if key == "" {
-		ctx.RespondStatus(http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	val := expvar.Get(key)
 	if val == nil {
-		ctx.RespondStatus(http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	ctx.Writer.Write([]byte(val.String()))
+	w.Write([]byte(val.String()))
+}
+
+func secondIndex(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	splits := strings.Split(path, "/")
+	switch splits[len(splits)-1] {
+	case "cmdline":
+		pprof.Cmdline(w, r)
+	case "profile":
+		pprof.Profile(w, r)
+	case "symbol":
+		pprof.Symbol(w, r)
+	case "trace":
+		pprof.Trace(w, r)
+	default:
+		pprof.Index(w, r)
+	}
 }
 
 // HandleFunc register handler func to profile serve multiplexer.
