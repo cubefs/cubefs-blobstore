@@ -117,6 +117,7 @@ type StreamConfig struct {
 	EncoderEnableVerify        bool   `json:"encoder_enableverify"`
 	EncoderConcurrency         int    `json:"encoder_concurrency"`
 	MinReadShardsX             int    `json:"min_read_shards_x"`
+	ShardCrcDisabled           bool   `json:"shard_crc_disabled"`
 
 	MemPoolSizeClasses map[int]int `json:"mem_pool_size_classes"`
 

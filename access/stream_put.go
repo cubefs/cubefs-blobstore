@@ -231,13 +231,18 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 			}()
 
 			diskID := unit.DiskID
-			crcOrigin := crc32.ChecksumIEEE(shards[index])
 			args := &blobnode.PutShardArgs{
 				DiskID: diskID,
 				Vuid:   unit.Vuid,
 				Bid:    bid,
 				Size:   int64(len(shards[index])),
 				Type:   blobnode.NormalIO,
+			}
+
+			crcDisabled := h.ShardCrcDisabled
+			var crcOrigin uint32
+			if !crcDisabled {
+				crcOrigin = crc32.ChecksumIEEE(shards[index])
 			}
 
 			// new child span to write to blobnode, we should finish it here.
@@ -269,7 +274,7 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 
 				crc, err = h.blobnodeClient.PutShard(ctxChild, host, args)
 				if err == nil {
-					if crc != crcOrigin {
+					if !crcDisabled && crc != crcOrigin {
 						return false, fmt.Errorf("crc mismatch 0x%x != 0x%x", crc, crcOrigin)
 					}
 

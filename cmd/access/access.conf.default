@@ -58,6 +58,7 @@
         "encoder_concurrency": 1000,
         "encoder_enableverify": true,
         "min_read_shards_x": 1,
+        "shard_crc_disabled": false,
         "cluster_config": {
             "region": "region",
             "region_magic": "",
