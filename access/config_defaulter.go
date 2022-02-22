@@ -17,29 +17,29 @@ package access
 const (
 	defaultMaxBlobSize uint32 = 1 << 22 // 4MB
 
-	defaultDiskPunishIntervalS    = 60
-	defaultServicePunishIntervalS = 60
-	defaultAllocRetryTimes        = 3
-	defaultAllocRetryIntervalMS   = 100
-	defaultEncoderConcurrency     = 1000
-	defaultMinReadShardsX         = 1
+	defaultDiskPunishIntervalS    int = 60
+	defaultServicePunishIntervalS int = 60
+	defaultAllocRetryTimes        int = 3
+	defaultAllocRetryIntervalMS   int = 100
+	defaultEncoderConcurrency     int = 1000
+	defaultMinReadShardsX         int = 1
 
 	// client timeout ms
-	defaultTimeoutClusterMgr = 1000 * 3
-	defaultTimeoutAllocator  = 1000 * 3
-	defaultTimeoutBlobnode   = 1000 * 5
-	defaultTimeoutMqproxy    = 1000 * 5
+	defaultTimeoutClusterMgr int64 = 1000 * 3
+	defaultTimeoutAllocator  int64 = 1000 * 3
+	defaultTimeoutBlobnode   int64 = 1000 * 5
+	defaultTimeoutMqproxy    int64 = 1000 * 5
 
-	defaultAllocatorErrorPercentThreshold  = 50
-	defaultAllocatorMaxConcurrentRequests  = 10240
-	defaultAllocatorRequestVolumeThreshold = 100
-	defaultAllocatorSleepWindow            = 2 * 1000
-	defaultAllocatorTimeout                = 30 * 1000
-	defaultBlobnodeErrorPercentThreshold   = 80
-	defaultBlobnodeMaxConcurrentRequests   = 102400
-	defaultBlobnodeRequestVolumeThreshold  = 1000
-	defaultBlobnodeSleepWindow             = 5 * 1000
-	defaultBlobnodeTimeout                 = 600 * 1000
+	defaultAllocatorErrorPercentThreshold  int = 50
+	defaultAllocatorMaxConcurrentRequests  int = 10240
+	defaultAllocatorRequestVolumeThreshold int = 100
+	defaultAllocatorSleepWindow            int = 2 * 1000
+	defaultAllocatorTimeout                int = 30 * 1000
+	defaultBlobnodeErrorPercentThreshold   int = 80
+	defaultBlobnodeMaxConcurrentRequests   int = 102400
+	defaultBlobnodeRequestVolumeThreshold  int = 1000
+	defaultBlobnodeSleepWindow             int = 5 * 1000
+	defaultBlobnodeTimeout                 int = 600 * 1000
 )
 
 // ec buffer
@@ -73,18 +73,4 @@ func getDefaultMempoolSize() map[int]int {
 		_mib * 16:  -1,
 		_mib * 32:  -1,
 	}
-}
-
-func defaultInt(oldV, newV int) int {
-	if oldV > 0 {
-		return oldV
-	}
-	return newV
-}
-
-func defaultInt64(oldV, newV int64) int64 {
-	if oldV > 0 {
-		return oldV
-	}
-	return newV
 }

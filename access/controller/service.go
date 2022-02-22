@@ -28,6 +28,7 @@ import (
 	"github.com/cubefs/blobstore/api/clustermgr"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/trace"
+	"github.com/cubefs/blobstore/util/defaulter"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/util/log"
 )
@@ -36,9 +37,9 @@ const (
 	_diskHostServicePrefix = "diskhost"
 
 	// default service punish check valid interval
-	defaultServicePinishValidIntervalS = 30
+	defaultServicePinishValidIntervalS int = 30
 	// default service punish check threshold
-	defaultServicePinishThreshold = 3
+	defaultServicePinishThreshold uint32 = 3
 )
 
 var (
@@ -120,12 +121,8 @@ type serviceControllerImpl struct {
 
 // NewServiceController returns a service controller
 func NewServiceController(cfg ServiceConfig, cmCli clustermgr.APIAccess) (ServiceController, error) {
-	if cfg.ServicePunishThreshold == 0 {
-		cfg.ServicePunishThreshold = defaultServicePinishThreshold
-	}
-	if cfg.ServicePunishValidIntervalS <= 0 {
-		cfg.ServicePunishValidIntervalS = defaultServicePinishValidIntervalS
-	}
+	defaulter.Equal(&cfg.ServicePunishThreshold, defaultServicePinishThreshold)
+	defaulter.LessOrEqual(&cfg.ServicePunishValidIntervalS, defaultServicePinishValidIntervalS)
 
 	controller := &serviceControllerImpl{
 		serviceHosts: serviceMap{

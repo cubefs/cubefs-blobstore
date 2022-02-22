@@ -33,6 +33,7 @@ import (
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/resourcepool"
 	"github.com/cubefs/blobstore/common/trace"
+	"github.com/cubefs/blobstore/util/defaulter"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/util/log"
 	"github.com/cubefs/blobstore/util/retry"
@@ -167,9 +168,6 @@ func confCheck(cfg *StreamConfig) {
 	}
 	cfg.ClusterConfig.IDC = cfg.IDC
 
-	if cfg.MaxBlobSize == 0 {
-		cfg.MaxBlobSize = defaultMaxBlobSize
-	}
 	if len(cfg.MemPoolSizeClasses) == 0 {
 		cfg.MemPoolSizeClasses = getDefaultMempoolSize()
 	}
@@ -181,35 +179,36 @@ func confCheck(cfg *StreamConfig) {
 		}
 	}
 
-	cfg.DiskPunishIntervalS = defaultInt(cfg.DiskPunishIntervalS, defaultDiskPunishIntervalS)
-	cfg.DiskTimeoutPunishIntervalS = defaultInt(cfg.DiskTimeoutPunishIntervalS, defaultDiskPunishIntervalS/10)
-	cfg.ServicePunishIntervalS = defaultInt(cfg.ServicePunishIntervalS, defaultServicePunishIntervalS)
-	cfg.AllocRetryTimes = defaultInt(cfg.AllocRetryTimes, defaultAllocRetryTimes)
+	defaulter.Equal(&cfg.MaxBlobSize, defaultMaxBlobSize)
+	defaulter.LessOrEqual(&cfg.DiskPunishIntervalS, defaultDiskPunishIntervalS)
+	defaulter.LessOrEqual(&cfg.DiskTimeoutPunishIntervalS, defaultDiskPunishIntervalS/10)
+	defaulter.LessOrEqual(&cfg.ServicePunishIntervalS, defaultServicePunishIntervalS)
+	defaulter.LessOrEqual(&cfg.AllocRetryTimes, defaultAllocRetryTimes)
 	if cfg.AllocRetryIntervalMS <= 100 {
 		cfg.AllocRetryIntervalMS = defaultAllocRetryIntervalMS
 	}
-	cfg.EncoderConcurrency = defaultInt(cfg.EncoderConcurrency, defaultEncoderConcurrency)
-	cfg.MinReadShardsX = defaultInt(cfg.MinReadShardsX, defaultMinReadShardsX)
+	defaulter.LessOrEqual(&cfg.EncoderConcurrency, defaultEncoderConcurrency)
+	defaulter.LessOrEqual(&cfg.MinReadShardsX, defaultMinReadShardsX)
 
-	cfg.ClusterConfig.CMClientConfig.Config.ClientTimeoutMs = defaultInt64(cfg.ClusterConfig.CMClientConfig.Config.ClientTimeoutMs, defaultTimeoutClusterMgr)
-	cfg.AllocatorConfig.ClientTimeoutMs = defaultInt64(cfg.AllocatorConfig.ClientTimeoutMs, defaultTimeoutAllocator)
-	cfg.BlobnodeConfig.ClientTimeoutMs = defaultInt64(cfg.BlobnodeConfig.ClientTimeoutMs, defaultTimeoutBlobnode)
-	cfg.MQproxyConfig.ClientTimeoutMs = defaultInt64(cfg.MQproxyConfig.ClientTimeoutMs, defaultTimeoutMqproxy)
+	defaulter.LessOrEqual(&cfg.ClusterConfig.CMClientConfig.Config.ClientTimeoutMs, defaultTimeoutClusterMgr)
+	defaulter.LessOrEqual(&cfg.AllocatorConfig.ClientTimeoutMs, defaultTimeoutAllocator)
+	defaulter.LessOrEqual(&cfg.BlobnodeConfig.ClientTimeoutMs, defaultTimeoutBlobnode)
+	defaulter.LessOrEqual(&cfg.MQproxyConfig.ClientTimeoutMs, defaultTimeoutMqproxy)
 
 	hc := cfg.AllocCommandConfig
-	hc.Timeout = defaultInt(hc.Timeout, defaultAllocatorTimeout)
-	hc.MaxConcurrentRequests = defaultInt(hc.MaxConcurrentRequests, defaultAllocatorMaxConcurrentRequests)
-	hc.RequestVolumeThreshold = defaultInt(hc.RequestVolumeThreshold, defaultAllocatorRequestVolumeThreshold)
-	hc.SleepWindow = defaultInt(hc.SleepWindow, defaultAllocatorSleepWindow)
-	hc.ErrorPercentThreshold = defaultInt(hc.ErrorPercentThreshold, defaultAllocatorErrorPercentThreshold)
+	defaulter.LessOrEqual(&hc.Timeout, defaultAllocatorTimeout)
+	defaulter.LessOrEqual(&hc.MaxConcurrentRequests, defaultAllocatorMaxConcurrentRequests)
+	defaulter.LessOrEqual(&hc.RequestVolumeThreshold, defaultAllocatorRequestVolumeThreshold)
+	defaulter.LessOrEqual(&hc.SleepWindow, defaultAllocatorSleepWindow)
+	defaulter.LessOrEqual(&hc.ErrorPercentThreshold, defaultAllocatorErrorPercentThreshold)
 	cfg.AllocCommandConfig = hc
 
 	hc = cfg.RWCommandConfig
-	hc.Timeout = defaultInt(hc.Timeout, defaultBlobnodeTimeout)
-	hc.MaxConcurrentRequests = defaultInt(hc.MaxConcurrentRequests, defaultBlobnodeMaxConcurrentRequests)
-	hc.RequestVolumeThreshold = defaultInt(hc.RequestVolumeThreshold, defaultBlobnodeRequestVolumeThreshold)
-	hc.SleepWindow = defaultInt(hc.SleepWindow, defaultBlobnodeSleepWindow)
-	hc.ErrorPercentThreshold = defaultInt(hc.ErrorPercentThreshold, defaultBlobnodeErrorPercentThreshold)
+	defaulter.LessOrEqual(&hc.Timeout, defaultBlobnodeTimeout)
+	defaulter.LessOrEqual(&hc.MaxConcurrentRequests, defaultBlobnodeMaxConcurrentRequests)
+	defaulter.LessOrEqual(&hc.RequestVolumeThreshold, defaultBlobnodeRequestVolumeThreshold)
+	defaulter.LessOrEqual(&hc.SleepWindow, defaultBlobnodeSleepWindow)
+	defaulter.LessOrEqual(&hc.ErrorPercentThreshold, defaultBlobnodeErrorPercentThreshold)
 	cfg.RWCommandConfig = hc
 }
 
