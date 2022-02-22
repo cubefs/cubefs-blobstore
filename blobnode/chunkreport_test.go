@@ -142,9 +142,9 @@ func TestChunkReport2(t *testing.T) {
 	path2 := filepath.Join(workDir, "disk2")
 
 	// must create meta dir
-	err = os.MkdirAll(core.GetMetaPath(path1), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path1, ""), 0o755)
 	require.NoError(t, err)
-	err = os.MkdirAll(core.GetMetaPath(path2), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path2, ""), 0o755)
 	require.NoError(t, err)
 
 	conf := Config{

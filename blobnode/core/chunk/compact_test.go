@@ -142,12 +142,12 @@ func (mock *diskMock) Close(ctx context.Context) {
 }
 
 func ensureTestDir(t *testing.T, diskRoot string) (root, meta, data string) {
-	err := core.EnsureDiskArea(diskRoot)
+	err := core.EnsureDiskArea(diskRoot, "")
 	require.NoError(t, err)
 
 	root = diskRoot
 	data = core.GetDataPath(diskRoot)
-	meta = core.GetMetaPath(diskRoot)
+	meta = core.GetMetaPath(diskRoot, "")
 	return
 }
 

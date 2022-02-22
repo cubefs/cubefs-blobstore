@@ -208,9 +208,9 @@ func newTestBlobNodeService(t *testing.T, path string) (*Service, *mockClusterMg
 	require.NoError(t, err)
 
 	// must create meta dir
-	err = os.MkdirAll(core.GetMetaPath(path1), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path1, ""), 0o755)
 	require.NoError(t, err)
-	err = os.MkdirAll(core.GetMetaPath(path2), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path2, ""), 0o755)
 	require.NoError(t, err)
 
 	conf := Config{
@@ -267,9 +267,9 @@ func TestService_CmdpChunk(t *testing.T) {
 	require.NoError(t, err)
 
 	// must create meta dir
-	err = os.MkdirAll(core.GetMetaPath(path1), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path1, ""), 0o755)
 	require.NoError(t, err)
-	err = os.MkdirAll(core.GetMetaPath(path2), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path2, ""), 0o755)
 	require.NoError(t, err)
 
 	conf := Config{

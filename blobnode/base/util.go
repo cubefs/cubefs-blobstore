@@ -52,7 +52,17 @@ func IsEmptyDisk(filename string) (bool, error) {
 		return true, nil
 	}
 
-	return false, nil
+	sysInitDir := map[string]bool{
+		"lost+found": true,
+	}
+
+	for _, fi := range fis {
+		if !sysInitDir[fi.Name()] {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // parse rangeStr to => [start, end]

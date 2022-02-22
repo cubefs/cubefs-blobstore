@@ -50,12 +50,12 @@ func TestDiskStorage_StartCompact(t *testing.T) {
 	vuid := proto.Vuid(2001)
 	chunkId := bnapi.NewChunkId(vuid)
 
-	err = core.EnsureDiskArea(testDir)
+	err = core.EnsureDiskArea(testDir, "")
 	require.NoError(t, err)
 
 	dataPath := core.GetDataPath(testDir)
 	println(dataPath)
-	metaPath := core.GetMetaPath(testDir)
+	metaPath := core.GetMetaPath(testDir, "")
 	println(metaPath)
 
 	mockDiskStorage := &DiskStorageWrapper{&DiskStorage{

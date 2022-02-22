@@ -66,6 +66,6 @@ func TestFormatInfo(t *testing.T) {
 
 func TestEnsureDiskArea(t *testing.T) {
 	diskPath := "!!"
-	err := EnsureDiskArea(diskPath)
+	err := EnsureDiskArea(diskPath, "")
 	require.Error(t, err)
 }

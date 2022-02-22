@@ -53,12 +53,12 @@ func TestNewChunkStorage(t *testing.T) {
 	vuid := proto.Vuid(1)
 	chunkid := bnapi.NewChunkId(vuid)
 
-	err = core.EnsureDiskArea(testDir)
+	err = core.EnsureDiskArea(testDir, "")
 	require.NoError(t, err)
 
 	datapath := core.GetDataPath(testDir)
 	println(datapath)
-	metapath := core.GetMetaPath(testDir)
+	metapath := core.GetMetaPath(testDir, "")
 	println(metapath)
 
 	kvdb, err := db.NewMetaHandler(metapath, db.MetaConfig{})
@@ -113,12 +113,12 @@ func TestChunkStorage_ReadWrite(t *testing.T) {
 	vuid := proto.Vuid(1)
 	chunkid := bnapi.NewChunkId(vuid)
 
-	err = core.EnsureDiskArea(testDir)
+	err = core.EnsureDiskArea(testDir, "")
 	require.NoError(t, err)
 
 	datapath := core.GetDataPath(testDir)
 	println(datapath)
-	metapath := core.GetMetaPath(testDir)
+	metapath := core.GetMetaPath(testDir, "")
 	println(metapath)
 
 	kvdb, err := db.NewMetaHandler(metapath, db.MetaConfig{})
@@ -231,12 +231,12 @@ func TestChunkStorage_DeleteOp(t *testing.T) {
 	vuid := proto.Vuid(1)
 	chunkid := bnapi.NewChunkId(vuid)
 
-	err = core.EnsureDiskArea(testDir)
+	err = core.EnsureDiskArea(testDir, "")
 	require.NoError(t, err)
 
 	datapath := core.GetDataPath(testDir)
 	println(datapath)
-	metapath := core.GetMetaPath(testDir)
+	metapath := core.GetMetaPath(testDir, "")
 	println(metapath)
 
 	kvdb, err := db.NewMetaHandler(metapath, db.MetaConfig{})
@@ -340,12 +340,12 @@ func TestChunkStorage_Finalizer(t *testing.T) {
 	vuid := proto.Vuid(1)
 	chunkid := bnapi.NewChunkId(vuid)
 
-	err = core.EnsureDiskArea(testDir)
+	err = core.EnsureDiskArea(testDir, "")
 	require.NoError(t, err)
 
 	datapath := core.GetDataPath(testDir)
 	println(datapath)
-	metapath := core.GetMetaPath(testDir)
+	metapath := core.GetMetaPath(testDir, "")
 	println(metapath)
 
 	metadb, err := db.NewMetaHandler(metapath, db.MetaConfig{})

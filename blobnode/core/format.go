@@ -54,7 +54,10 @@ const (
 	formatInfoCheckSumPoly = uint32(0xebf0ace5)
 )
 
-var ErrFormatInfoCheckSum = errors.New("format info check sum error")
+var (
+	ErrFormatInfoCheckSum = errors.New("format info check sum error")
+	ErrInvalidPathPrefix  = errors.New("invalid path prefix")
+)
 
 type FormatInfoProtectedField struct {
 	DiskID  proto.DiskID `json:"diskid"`
@@ -84,15 +87,18 @@ func SysTrashPath(diskRoot string) (path string) {
 	return filepath.Join(diskRoot, _trashPrefix)
 }
 
-func GetMetaPath(diskRoot string) (path string) {
-	return filepath.Join(metaRootPath(diskRoot), "superblock")
+func GetMetaPath(diskRoot string, metaRootPrefix string) (path string) {
+	path = filepath.Join(metaRootPath(diskRoot), "superblock")
+	// Metadata can be put in a unified location
+	path = filepath.Join(metaRootPrefix, path)
+	return path
 }
 
 func GetDataPath(diskRoot string) (path string) {
 	return dataRootPath(diskRoot)
 }
 
-func EnsureDiskArea(diskpath string) (err error) {
+func EnsureDiskArea(diskpath string, rootPrefix string) (err error) {
 	if _, err = os.Stat(diskpath); err != nil {
 		return err
 	}
@@ -104,7 +110,7 @@ func EnsureDiskArea(diskpath string) (err error) {
 	}
 
 	// ensure meta area(dir)
-	err = os.MkdirAll(GetMetaPath(diskpath), 0o755)
+	err = os.MkdirAll(GetMetaPath(diskpath, rootPrefix), 0o755)
 	if err != nil {
 		return err
 	}

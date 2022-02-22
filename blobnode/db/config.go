@@ -28,6 +28,7 @@ const (
 )
 
 type MetaConfig struct {
+	MetaRootPrefix    string            `json:"meta_root_prefix"`
 	Sync              bool              `json:"sync"`
 	BatchProcessCount int64             `json:"batch_process_count"`
 	WritePriRatio     float64           `json:"write_pri_ratio"`

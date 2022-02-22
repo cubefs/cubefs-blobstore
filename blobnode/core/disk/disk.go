@@ -385,21 +385,38 @@ func newDiskStorage(ctx context.Context, conf core.Config) (ds *DiskStorage, err
 		return nil, err
 	}
 
-	if conf.MustMountPoint && !myos.IsMountPoint(conf.Path) {
-		span.Errorf("%s must mount point.", conf.Path)
-		return nil, errors.New("must mount point")
+	metaRoot := conf.MetaRootPrefix
+	if metaRoot != "" {
+		if exist, err := bncom.IsFileExists(metaRoot); err != nil || !exist {
+			span.Errorf("meta path: %s not exist ( occur err:%v ), exit", metaRoot, err)
+			return nil, errors.New("meta root prefix not exist")
+		}
+	}
+
+	if conf.MustMountPoint {
+		if !myos.IsMountPoint(conf.Path) {
+			span.Errorf("%s must mount point.", conf.Path)
+			return nil, errors.New("must mount point")
+		}
+
+		if metaRoot != "" && !myos.IsMountPoint(metaRoot) {
+			span.Errorf("%s must mount point.", metaRoot)
+			return nil, errors.New("must mount point")
+		}
 	}
 
 	if conf.AutoFormat {
 		span.Warnf("auto format mode, will ensure directory.")
-		err = core.EnsureDiskArea(path)
+		err = core.EnsureDiskArea(path, metaRoot)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	diskMetaPath := core.GetMetaPath(path)
 	diskDataPath := core.GetDataPath(path)
+	diskMetaPath := core.GetMetaPath(path, metaRoot)
+
+	span.Infof("datapath: %v, metapath:%v", diskDataPath, diskMetaPath)
 
 	// load superblock，create or open
 	sb, err := NewSuperBlock(diskMetaPath, &conf)
@@ -422,7 +439,7 @@ func newDiskStorage(ctx context.Context, conf core.Config) (ds *DiskStorage, err
 	if !dm.Registered {
 		exist, err := core.IsFormatConfigExist(path)
 		if err != nil || exist {
-			span.Errorf("unexpected error. exist:%v err:%v", exist, err)
+			span.Errorf("unexpected error. format file ( in %s ) should not exist, but, exist:%v err:%v", path, exist, err)
 			return nil, bloberr.ErrUnexpected
 		}
 

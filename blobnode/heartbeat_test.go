@@ -93,7 +93,7 @@ func TestHeartbeat2(t *testing.T) {
 	path1 := filepath.Join(workDir, "disk1")
 
 	// must create meta dir
-	err = os.MkdirAll(core.GetMetaPath(path1), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path1, ""), 0o755)
 	require.NoError(t, err)
 
 	conf := Config{
@@ -161,9 +161,9 @@ func TestHeartbeat3(t *testing.T) {
 	path2 := filepath.Join(workDir, "disk2")
 
 	// must create meta dir
-	err = os.MkdirAll(core.GetMetaPath(path1), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path1, ""), 0o755)
 	require.NoError(t, err)
-	err = os.MkdirAll(core.GetMetaPath(path2), 0o755)
+	err = os.MkdirAll(core.GetMetaPath(path2, ""), 0o755)
 	require.NoError(t, err)
 
 	conf := Config{

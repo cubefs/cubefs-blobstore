@@ -15,6 +15,9 @@
 package base
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -103,4 +106,36 @@ func TestIsEmptyDisk(t *testing.T) {
 	flag, err := IsEmptyDisk(filename)
 	require.Equal(t, false, flag)
 	require.Error(t, err)
+
+	testDir, err := ioutil.TempDir(os.TempDir(), "blobnode_util")
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	flag, err = IsEmptyDisk(testDir)
+	require.Equal(t, true, flag)
+	require.NoError(t, err)
+
+	path := filepath.Join(testDir, "lost+found")
+	err = os.MkdirAll(path, 0o755)
+	require.NoError(t, err)
+
+	flag, err = IsEmptyDisk(testDir)
+	require.Equal(t, true, flag)
+	require.NoError(t, err)
+
+	path = filepath.Join(testDir, "test")
+	err = os.MkdirAll(path, 0o755)
+	require.NoError(t, err)
+
+	flag, err = IsEmptyDisk(testDir)
+	require.Equal(t, false, flag)
+	require.NoError(t, err)
+
+	path = filepath.Join(testDir, "test")
+	err = os.Remove(path)
+	require.NoError(t, err)
+
+	flag, err = IsEmptyDisk(testDir)
+	require.Equal(t, true, flag)
+	require.NoError(t, err)
 }
