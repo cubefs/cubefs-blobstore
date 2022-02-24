@@ -14,8 +14,6 @@
 
 package raftserver
 
-//go:generate mockgen -destination=./storage_mock_test.go -package=raftserver -mock_names KVStorage=MockKVStorage github.com/cubefs/blobstore/common/raftserver KVStorage
-
 import (
 	"fmt"
 	"math"
