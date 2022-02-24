@@ -77,8 +77,6 @@ func TestNewChunkData(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	// 场景：open 已有的 chunk文件，解析校验
-
 	cdRo, err := NewChunkData(ctx, core.VuidMeta{}, chunkname, conf, true, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cdRo)
@@ -122,7 +120,7 @@ func TestChunkData_Write(t *testing.T) {
 
 	body := bytes.NewBuffer(sharddata)
 
-	// 构造 shard 数据
+	// build shard data
 	shard := &core.Shard{
 		Bid:  1024,
 		Vuid: 10,
@@ -131,14 +129,14 @@ func TestChunkData_Write(t *testing.T) {
 		Body: body,
 	}
 
-	// 写数据
+	// write data
 	err = cd.Write(ctx, shard)
 	require.NoError(t, err)
 
 	require.Equal(t, int32(shard.Offset), int32(4096))
 	require.Equal(t, int32(cd.wOff), int32(8192))
 
-	// 读数据校验
+	// read crc
 	r, err := cd.Read(ctx, shard, 0, shard.Size)
 	require.NoError(t, err)
 	rd, err := ioutil.ReadAll(r)
@@ -147,7 +145,6 @@ func TestChunkData_Write(t *testing.T) {
 	fmt.Printf("read: %s\n", string(rd))
 	fmt.Printf("shard:%s\n", shard)
 
-	// 校验读数据是否一致
 	require.Equal(t, sharddata, rd)
 
 	expectedOff := core.AlignSize(
@@ -194,7 +191,6 @@ func TestChunkData_ConcurrencyWrite(t *testing.T) {
 
 		body := bytes.NewBuffer(sharddata)
 
-		// 构造 shard 数据
 		shard := &core.Shard{
 			Bid:  1024,
 			Vuid: 10,
@@ -216,7 +212,6 @@ func TestChunkData_ConcurrencyWrite(t *testing.T) {
 			err := cd.Write(ctx, shard)
 			require.NoError(t, err)
 
-			// 读数据校验
 			r, err := cd.Read(ctx, shard, 0, shard.Size)
 			require.NoError(t, err)
 			rd, err := ioutil.ReadAll(r)
@@ -225,7 +220,6 @@ func TestChunkData_ConcurrencyWrite(t *testing.T) {
 			fmt.Printf("read: %s\n", string(rd))
 			fmt.Printf("shard:%s\n", shard)
 
-			// 校验读数据是否一致
 			require.Equal(t, sharddatas[i], rd)
 		}(i, shards[i])
 	}
@@ -281,7 +275,6 @@ func TestChunkData_Delete(t *testing.T) {
 
 		body := bytes.NewBuffer(sharddata)
 
-		// 构造 shard 数据
 		shard := &core.Shard{
 			Bid:  1024,
 			Vuid: 10,
@@ -303,7 +296,6 @@ func TestChunkData_Delete(t *testing.T) {
 			err := cd.Write(ctx, shard)
 			require.NoError(t, err)
 
-			// 读数据校验
 			r, err := cd.Read(ctx, shard, 0, shard.Size)
 			require.NoError(t, err)
 			rd, err := ioutil.ReadAll(r)
@@ -312,7 +304,6 @@ func TestChunkData_Delete(t *testing.T) {
 			fmt.Printf("read: %s\n", string(rd))
 			fmt.Printf("shard:%s\n", shard)
 
-			// 校验读数据是否一致
 			require.Equal(t, sharddatas[i], rd)
 		}(i, shards[i])
 	}

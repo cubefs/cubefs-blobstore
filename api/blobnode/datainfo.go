@@ -56,9 +56,10 @@ type ChunkInfo struct {
 }
 
 type ShardInfo struct {
-	Vuid proto.Vuid   `json:"vuid"`
-	Bid  proto.BlobID `json:"bid"`
-	Size int64        `json:"size"`
-	Crc  uint32       `json:"crc"`
-	Flag ShardStatus  `json:"flag"` // 1:normal,2:markDelete
+	Vuid   proto.Vuid   `json:"vuid"`
+	Bid    proto.BlobID `json:"bid"`
+	Size   int64        `json:"size"`
+	Crc    uint32       `json:"crc"`
+	Flag   ShardStatus  `json:"flag"` // 1:normal,2:markDelete
+	Inline bool         `json:"inline"`
 }

@@ -75,27 +75,20 @@ func (stg *storage) RawStorage() core.Storage {
 func (stg *storage) Write(ctx context.Context, b *core.Shard) (err error) {
 	data, meta := stg.data, stg.meta
 
-	// write data
+	// write data file, will modify *shard
 	err = data.Write(ctx, b)
 	if err != nil {
 		return err
 	}
 
 	// write meta
-	m := core.ShardMeta{
+	return meta.Write(ctx, b.Bid, core.ShardMeta{
 		Version: _shardVer[0],
 		Size:    b.Size,
 		Crc:     b.Crc,
 		Offset:  b.Offset,
 		Flag:    b.Flag,
-	}
-
-	err = meta.Write(ctx, b.Bid, m)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func (stg *storage) ReadShardMeta(ctx context.Context, bid proto.BlobID) (sm *core.ShardMeta, err error) {
@@ -159,6 +152,11 @@ func (stg *storage) Delete(ctx context.Context, bid proto.BlobID) (n int64, err 
 	if err != nil {
 		span.Errorf("Failed: shard:%v meta delete:%v", bid, err)
 		return n, err
+	}
+
+	// data inline , skip
+	if shardMeta.Inline {
+		return int64(shardMeta.Size), nil
 	}
 
 	shard := &core.Shard{

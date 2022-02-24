@@ -28,12 +28,14 @@ const (
 )
 
 type MetaConfig struct {
-	MetaRootPrefix    string            `json:"meta_root_prefix"`
-	Sync              bool              `json:"sync"`
-	BatchProcessCount int64             `json:"batch_process_count"`
-	WritePriRatio     float64           `json:"write_pri_ratio"`
-	MetaQos           qos.LevelConfig   `json:"meta_qos"`
-	RocksdbOption     rdb.RocksDBOption `json:"rocksdb_option"`
+	MetaRootPrefix     string            `json:"meta_root_prefix"`
+	SupportInline      bool              `json:"support_inline"`
+	TinyFileThresholdB int               `json:"tinyfile_threshold_B"`
+	Sync               bool              `json:"sync"`
+	BatchProcessCount  int64             `json:"batch_process_count"`
+	WritePriRatio      float64           `json:"write_pri_ratio"`
+	MetaQos            qos.LevelConfig   `json:"meta_qos"`
+	RocksdbOption      rdb.RocksDBOption `json:"rocksdb_option"`
 }
 
 func initConfig(conf *MetaConfig) error {

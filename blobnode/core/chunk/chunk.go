@@ -110,7 +110,7 @@ func newChunkStorage(ctx context.Context, dataPath string, vm core.VuidMeta, opt
 	}
 
 	// create meta fd
-	cm, err := storage.NewChunkMeta(ctx, vm, opt.DB)
+	cm, err := storage.NewChunkMeta(ctx, opt.Conf, vm, opt.DB)
 	if err != nil {
 		span.Errorf("Failed new chunk meta. vm:%v, err:%v", vm, err)
 		return nil, err
@@ -134,6 +134,9 @@ func newChunkStorage(ctx context.Context, dataPath string, vm core.VuidMeta, opt
 
 	// init stg
 	stg := storage.NewStorage(cm, cd)
+	// enhence stg, with inline feat
+	stg = storage.NewTinyFileStg(stg, opt.Conf.TinyFileThresholdB)
+
 	cs.setStg(stg)
 
 	cs.fileInfo.Total = uint64(vm.ChunkSize)
@@ -404,7 +407,8 @@ func (cs *chunk) NewRangeReader(ctx context.Context, id proto.BlobID, from, to i
 }
 
 func (cs *chunk) newRangeReader(ctx context.Context, stg core.Storage, id proto.BlobID, sm *core.ShardMeta, from, to int64) (
-	s *core.Shard, err error) {
+	s *core.Shard, err error,
+) {
 	s = core.NewShardReader(id, cs.vuid, from, to, nil)
 
 	s.FillMeta(*sm)

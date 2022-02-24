@@ -115,7 +115,7 @@ var (
 )
 
 const (
-	_ShardMetaSize = 32
+	_ShardMetaSize = 32 // header
 )
 
 // meta db key
@@ -126,12 +126,14 @@ type ShardKey struct {
 
 // meta db value
 type ShardMeta struct {
-	Version uint8             `json:"version"`
-	Flag    bnapi.ShardStatus `json:"flag"`
-	Offset  int64             `json:"offset"`
-	Size    uint32            `json:"size"`
-	Crc     uint32            `json:"crc"`
-	Padding [8]byte           `json:"-"`
+	Version uint8
+	Flag    bnapi.ShardStatus
+	Offset  int64
+	Size    uint32
+	Crc     uint32
+	Padding [8]byte
+	Inline  bool
+	Buffer  []byte
 }
 
 // Blob Shard in memory
@@ -144,6 +146,9 @@ type Shard struct {
 	Crc    uint32            // crc for shard data
 	Flag   bnapi.ShardStatus // shard status
 
+	Inline bool   // shard data inline
+	Buffer []byte // inline data
+
 	Body     io.Reader // for put: shard body
 	From, To int64     // for get: range (note: may fix in cs)
 	Writer   io.Writer // for get: transmission to network
@@ -153,10 +158,21 @@ type Shard struct {
 }
 
 func (sm *ShardMeta) Marshal() ([]byte, error) {
-	buf := make([]byte, _ShardMetaSize)
+	bufLen := _ShardMetaSize
 
+	if sm.Inline {
+		if int(sm.Size) != len(sm.Buffer) {
+			panic(ErrShardBufferSize)
+		}
+		bufLen = bufLen + int(sm.Size)
+	}
+
+	buf := make([]byte, bufLen)
 	buf[0] = sm.Version
 	buf[1] = uint8(sm.Flag)
+	if sm.Inline {
+		buf[1] = buf[1] | bnapi.ShardDataInline
+	}
 
 	binary.LittleEndian.PutUint64(buf[8:16], uint64(sm.Offset))
 	binary.LittleEndian.PutUint32(buf[16:20], uint32(sm.Size))
@@ -164,11 +180,15 @@ func (sm *ShardMeta) Marshal() ([]byte, error) {
 
 	copy(buf[24:32], sm.Padding[:])
 
+	if sm.Inline && sm.Buffer != nil {
+		copy(buf[32:32+sm.Size], sm.Buffer)
+	}
+
 	return buf, nil
 }
 
 func (sm *ShardMeta) Unmarshal(data []byte) error {
-	if len(data) != _ShardMetaSize {
+	if len(data) < _ShardMetaSize {
 		panic(ErrShardBufferSize)
 	}
 
@@ -180,6 +200,12 @@ func (sm *ShardMeta) Unmarshal(data []byte) error {
 	sm.Crc = binary.LittleEndian.Uint32(data[20:24])
 
 	copy(sm.Padding[:], data[24:32])
+
+	sm.Inline = sm.Flag&bnapi.ShardDataInline != 0
+	if sm.Inline {
+		sm.Flag = sm.Flag &^ bnapi.ShardDataInline
+		sm.Buffer = data[32 : 32+sm.Size]
+	}
 
 	return nil
 }
@@ -278,6 +304,9 @@ func (b *Shard) FillMeta(meta ShardMeta) {
 	b.Size = meta.Size
 	b.Crc = meta.Crc
 	b.Flag = meta.Flag
+
+	b.Inline = meta.Inline
+	b.Buffer = meta.Buffer
 }
 
 // for write

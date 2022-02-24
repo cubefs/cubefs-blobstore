@@ -63,6 +63,10 @@ func (mm *mockBrokenMeta) Scan(ctx context.Context, startBid proto.BlobID, limit
 	return
 }
 
+func (mm *mockBrokenMeta) SupportInline() bool {
+	return false
+}
+
 func (mm *mockBrokenMeta) Destroy(ctx context.Context) (err error) {
 	err = bloberr.ErrUnexpected
 	return

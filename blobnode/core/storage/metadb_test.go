@@ -55,7 +55,7 @@ func TestNewChunkMeta(t *testing.T) {
 		DiskID:  diskid,
 	}
 
-	cm, err := NewChunkMeta(context.TODO(), vm, kvdb)
+	cm, err := NewChunkMeta(context.TODO(), &core.Config{}, vm, kvdb)
 	require.NoError(t, err)
 	require.NotNil(t, cm)
 
@@ -88,7 +88,7 @@ func TestChunkMeta_Write(t *testing.T) {
 		DiskID:  diskid,
 	}
 
-	cm, err := NewChunkMeta(ctx, vm, kvdb)
+	cm, err := NewChunkMeta(ctx, &core.Config{}, vm, kvdb)
 	require.NoError(t, err)
 	require.NotNil(t, cm)
 	defer cm.Close()
@@ -145,7 +145,7 @@ func TestChunkMeta_Scan(t *testing.T) {
 		DiskID:  diskid,
 	}
 
-	cm, err := NewChunkMeta(ctx, vm, kvdb)
+	cm, err := NewChunkMeta(ctx, &core.Config{}, vm, kvdb)
 	require.NoError(t, err)
 	require.NotNil(t, cm)
 	defer cm.Close()
@@ -257,7 +257,7 @@ func TestChunkMeta_Destroy(t *testing.T) {
 		DiskID:  diskid,
 	}
 
-	cm, err := NewChunkMeta(ctx, vm, kvdb)
+	cm, err := NewChunkMeta(ctx, &core.Config{}, vm, kvdb)
 	require.NoError(t, err)
 	require.NotNil(t, cm)
 	defer cm.Close()

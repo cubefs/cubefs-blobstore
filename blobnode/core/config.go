@@ -52,7 +52,7 @@ type BaseConfig struct {
 }
 
 type RuntimeConfig struct {
-	DiskReservedSpaceB           int64      `json:"disk_reserved_space_B"`
+	DiskReservedSpaceB           int64      `json:"disk_reserved_space_B"`             // threshold
 	ChunkReleaseProtectionM      int64      `json:"chunk_protection_M"`                // protect
 	ChunkCompactIntervalSec      int64      `json:"chunk_compact_interval_S"`          // loop
 	ChunkCleanIntervalSec        int64      `json:"chunk_clean_interval_S"`            // loop

@@ -298,7 +298,7 @@ func TestCleanChunkSpace(t *testing.T) {
 		DiskID:  diskid,
 	}
 
-	cm, err := storage.NewChunkMeta(ctx, vm, s.db)
+	cm, err := storage.NewChunkMeta(ctx, &core.Config{}, vm, s.db)
 	require.NoError(t, err)
 	require.NotNil(t, cm)
 	defer cm.Close()

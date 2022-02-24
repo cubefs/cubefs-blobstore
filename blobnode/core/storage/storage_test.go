@@ -31,8 +31,9 @@ import (
 )
 
 type mockmeta struct {
-	id   bnapi.ChunkId
-	bids map[proto.BlobID]core.ShardMeta
+	id            bnapi.ChunkId
+	bids          map[proto.BlobID]core.ShardMeta
+	supportInline bool
 }
 
 type mockdata struct {
@@ -101,6 +102,10 @@ func (mm *mockmeta) Delete(ctx context.Context, bid proto.BlobID) (err error) {
 func (mm *mockmeta) Scan(ctx context.Context, startBid proto.BlobID, limit int,
 	fn func(bid proto.BlobID, sm *core.ShardMeta) error) (err error) {
 	return
+}
+
+func (cm *mockmeta) SupportInline() bool {
+	return cm.supportInline
 }
 
 func (mm *mockmeta) Destroy(ctx context.Context) (err error) {
@@ -222,4 +227,46 @@ func TestStorage_Operations(t *testing.T) {
 	}
 	_, err = stg.Delete(ctx, b4.Bid)
 	require.NoError(t, err)
+}
+
+func TestStorage_ShardInline(t *testing.T) {
+	stg := NewStorage(&mockmeta{
+		id:            bnapi.ChunkId{0x1},
+		bids:          map[proto.BlobID]core.ShardMeta{},
+		supportInline: true,
+	}, &mockdata{})
+	require.NotNil(t, stg)
+
+	stg = NewTinyFileStg(stg, 8)
+	require.NotNil(t, stg)
+
+	require.Equal(t, bnapi.ChunkId{0x1}, stg.ID())
+
+	require.NotNil(t, stg.MetaHandler())
+	require.NotNil(t, stg.DataHandler())
+
+	// ----- write -------
+	ctx := context.TODO()
+	// normal
+	b1 := &core.Shard{
+		Bid:  1,
+		Body: bytes.NewReader([]byte("test")),
+	}
+	err := stg.Write(ctx, b1)
+	require.NoError(t, err)
+
+	// data error
+	b2 := &core.Shard{
+		Bid: 2,
+	}
+	err = stg.Write(ctx, b2)
+	// data inline, no error
+	require.NoError(t, err)
+
+	// meta error
+	b3 := &core.Shard{
+		Bid: 3,
+	}
+	err = stg.Write(ctx, b3)
+	require.Error(t, err)
 }

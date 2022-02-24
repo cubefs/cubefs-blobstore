@@ -198,6 +198,125 @@ func TestChunkStorage_ReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, me)
 
+	require.Equal(t, false, me.Inline)
+	require.Equal(t, shard.Size, me.Size)
+
+	// calc crc32
+	expectedCrc := crc32.ChecksumIEEE(shardData)
+	require.Equal(t, expectedCrc, shard.Crc)
+	println(expectedCrc)
+
+	from, to := int64(0), int64(1)
+	_, err = cs.NewRangeReader(ctx, shard.Bid, from, to)
+	require.NoError(t, err)
+
+	cs.compacting = true
+	shard.Body = bytes.NewReader(shardData)
+	err = cs.Write(ctx, shard)
+	require.NoError(t, err)
+}
+
+func TestChunkStorage_ReadWriteInline(t *testing.T) {
+	testDir, err := ioutil.TempDir(os.TempDir(), defaultDiskTestDir+"ChunkStorageRWInline")
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	ctx := context.Background()
+
+	conf := &core.Config{
+		RuntimeConfig: core.RuntimeConfig{
+			MetricReportIntervalS: 30,
+		},
+		MetaConfig: db.MetaConfig{
+			SupportInline: true,
+		},
+	}
+
+	vuid := proto.Vuid(1)
+	chunkid := bnapi.NewChunkId(vuid)
+
+	err = core.EnsureDiskArea(testDir, "")
+	require.NoError(t, err)
+
+	datapath := core.GetDataPath(testDir)
+	println(datapath)
+	metapath := core.GetMetaPath(testDir, "")
+	println(metapath)
+
+	kvdb, err := db.NewMetaHandler(metapath, db.MetaConfig{})
+	require.NoError(t, err)
+	require.NotNil(t, kvdb)
+
+	vm := core.VuidMeta{
+		Vuid:    vuid,
+		DiskID:  12,
+		ChunkId: chunkid,
+		Mtime:   time.Now().UnixNano(),
+		Status:  bnapi.ChunkStatusNormal,
+	}
+
+	ioQos, _ := qos.NewQosManager(qos.Config{})
+	cs, err := NewChunkStorage(ctx, datapath, vm, func(option *core.Option) {
+		option.Conf = conf
+		option.DB = kvdb
+		option.CreateDataIfMiss = true
+		option.IoQos = ioQos
+	})
+	require.NoError(t, err)
+	require.NotNil(t, cs)
+
+	// 构造 shard 数据
+	shardData := []byte("test")
+
+	bid := proto.BlobID(1024)
+
+	// normal write
+	shard := &core.Shard{
+		Bid:  bid,
+		Vuid: vuid,
+		Flag: bnapi.ShardStatusNormal,
+		Size: uint32(len(shardData)),
+		Body: bytes.NewReader(shardData),
+	}
+
+	// write data
+	err = cs.Write(ctx, shard)
+	require.NoError(t, err)
+
+	// read data and check
+	rs, err := cs.NewReader(ctx, bid)
+	require.NoError(t, err)
+	require.NotNil(t, rs)
+
+	require.Equal(t, shard.Bid, rs.Bid)
+	require.Equal(t, shard.Vuid, rs.Vuid)
+	require.Equal(t, shard.Flag, rs.Flag)
+	require.Equal(t, shard.Size, rs.Size)
+
+	rd, err := ioutil.ReadAll(rs.Body)
+	require.NoError(t, err)
+	require.Equal(t, shardData, rd)
+
+	// range read
+	rs1, err := cs.NewRangeReader(ctx, bid, 1, 3)
+	require.NoError(t, err)
+	require.NotNil(t, rs1)
+
+	require.Equal(t, shard.Bid, rs1.Bid)
+	require.Equal(t, shard.Vuid, rs1.Vuid)
+	require.Equal(t, shard.Flag, rs1.Flag)
+	require.Equal(t, shard.Size, rs1.Size)
+
+	rd, err = ioutil.ReadAll(rs1.Body)
+	require.NoError(t, err)
+	require.Equal(t, shardData[1:3], rd)
+
+	// read meta
+	me, err := cs.ReadShardMeta(ctx, bid)
+	require.NoError(t, err)
+	require.NotNil(t, me)
+
+	require.Equal(t, true, me.Inline)
 	require.Equal(t, shard.Size, me.Size)
 
 	// calc crc32

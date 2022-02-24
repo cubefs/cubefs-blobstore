@@ -114,7 +114,7 @@ func TestShardMeta_Marshal(t *testing.T) {
 		Crc:     4096,
 	}
 
-	require.Equal(t, _ShardMetaSize, int(unsafe.Sizeof(ShardMeta{})))
+	require.Equal(t, int(unsafe.Sizeof(ShardMeta{})) >= _ShardMetaSize, true)
 
 	buf, err := sm.Marshal()
 	require.NoError(t, err)
@@ -129,4 +129,19 @@ func TestShardMeta_Marshal(t *testing.T) {
 	err = sm1.Unmarshal(buf)
 	require.NoError(t, err)
 	require.NotEqual(t, *sm, *sm1)
+
+	// inline
+	sm.Buffer = make([]byte, 2048)
+	sm.Inline = true
+	copy(sm.Buffer, []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+	buf, err = sm.Marshal()
+	require.NoError(t, err)
+	require.Equal(t, int(_ShardMetaSize+sm.Size), int(len(buf)))
+
+	sm1 = &ShardMeta{}
+	err = sm1.Unmarshal(buf)
+	require.NoError(t, err)
+	require.Equal(t, true, sm1.Inline)
+	require.Equal(t, int(1), int(sm1.Flag))
+	require.Equal(t, sm.Buffer, sm1.Buffer)
 }

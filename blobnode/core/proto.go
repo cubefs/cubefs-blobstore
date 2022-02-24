@@ -71,6 +71,7 @@ type StorageStat struct {
 type MetaHandler interface {
 	ID() bnapi.ChunkId
 	InnerDB() db.MetaHandler
+	SupportInline() bool
 	Write(ctx context.Context, bid proto.BlobID, value ShardMeta) (err error)
 	Read(ctx context.Context, bid proto.BlobID) (value ShardMeta, err error)
 	Delete(ctx context.Context, bid proto.BlobID) (err error)

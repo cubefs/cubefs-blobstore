@@ -35,9 +35,13 @@ const (
 type ShardStatus uint8
 
 const (
-	ShardStatusDefault    ShardStatus = iota // 0
-	ShardStatusNormal                        // 1
-	ShardStatusMarkDelete                    // 2
+	ShardStatusDefault    ShardStatus = 0x0 // 0 ; 0000
+	ShardStatusNormal     ShardStatus = 0x1 // 1 ; 0001
+	ShardStatusMarkDelete ShardStatus = 0x2 // 2 ; 0010
+)
+
+const (
+	ShardDataInline = 0x80 // 1000 0000
 )
 
 type PutShardArgs struct {

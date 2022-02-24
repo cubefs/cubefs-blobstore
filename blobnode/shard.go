@@ -96,8 +96,10 @@ func (s *Service) ShardGet_(c *rpc.Context) {
 		return
 	}
 
+	start := time.Now()
 	limitKey := args.Bid
 	err = s.GetQpsLimitPerKey.Acquire(limitKey)
+	span.AppendTrackLog("lk.key", start, err)
 	if err != nil {
 		c.RespondError(bloberr.ErrOverload)
 		span.Warnf("shard get overload. args:%v err:%v", args, err)
@@ -105,8 +107,10 @@ func (s *Service) ShardGet_(c *rpc.Context) {
 	}
 	defer s.GetQpsLimitPerKey.Release(limitKey)
 
+	start = time.Now()
 	limitDiskKey := cs.Disk().ID()
 	err = s.GetQpsLimitPerDisk.Acquire(limitDiskKey)
+	span.AppendTrackLog("lk.disk", start, err)
 	if err != nil {
 		c.RespondError(bloberr.ErrOverload)
 		span.Warnf("shard get overload. args:%v err:%v", args, err)
@@ -331,11 +335,12 @@ func (s *Service) ShardStat_(c *rpc.Context) {
 	}
 
 	stat := bnapi.ShardInfo{
-		Vuid: args.Vuid,
-		Bid:  args.Bid,
-		Size: int64(sm.Size),
-		Crc:  sm.Crc,
-		Flag: sm.Flag,
+		Vuid:   args.Vuid,
+		Bid:    args.Bid,
+		Size:   int64(sm.Size),
+		Crc:    sm.Crc,
+		Flag:   sm.Flag,
+		Inline: sm.Inline,
 	}
 	c.RespondJSON(stat)
 }
@@ -547,8 +552,11 @@ func (s *Service) ShardPut_(c *rpc.Context) {
 		return
 	}
 
+	start := time.Now()
+
 	limitKey := cs.Disk().ID()
 	err = s.PutQpsLimitPerDisk.Acquire(limitKey)
+	span.AppendTrackLog("lk.disk", start, err)
 	if err != nil {
 		span.Errorf("shard put overload. args:%v err:%v", args, err)
 		c.RespondError(bloberr.ErrOverload)
@@ -565,7 +573,7 @@ func (s *Service) ShardPut_(c *rpc.Context) {
 
 	shard := core.NewShardWriter(args.Bid, args.Vuid, uint32(args.Size), c.Request.Body)
 
-	start := time.Now()
+	start = time.Now()
 
 	err = cs.Write(ctx, shard)
 	span.AppendTrackLog("disk.put", start, err)
@@ -576,14 +584,17 @@ func (s *Service) ShardPut_(c *rpc.Context) {
 	}
 	ret.Crc = shard.Crc
 
-	start = time.Now()
-	err = cs.SyncData(ctx)
-	span.AppendTrackLog("sync", start, err)
-	if err != nil {
-		span.Errorf("Failed to sync shard, args: %+v, err: %v", args, err)
-		c.RespondError(err)
-		return
+	if !shard.Inline {
+		start = time.Now()
+		err = cs.SyncData(ctx)
+		span.AppendTrackLog("sync", start, err)
+		if err != nil {
+			span.Errorf("Failed to sync shard, args: %+v, err: %v", args, err)
+			c.RespondError(err)
+			return
+		}
 	}
+
 	c.RespondJSON(ret)
 }
 

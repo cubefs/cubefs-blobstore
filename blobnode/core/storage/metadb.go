@@ -50,11 +50,12 @@ var (
 )
 
 type metafile struct {
-	lock         sync.RWMutex
-	db           db.MetaHandler // meta kv db
-	id           bnapi.ChunkId  // chunk id
-	shardkeyPool sync.Pool      // shard key pool
-	closed       bool
+	lock          sync.RWMutex
+	db            db.MetaHandler // meta kv db
+	id            bnapi.ChunkId  // chunk id
+	shardkeyPool  sync.Pool      // shard key pool
+	supportInline bool           //
+	closed        bool
 }
 
 func (cm *metafile) genShardKey(id core.ShardKey) []byte {
@@ -242,6 +243,10 @@ func (cm *metafile) Close() {
 	cm.closed = true
 }
 
+func (cm *metafile) SupportInline() bool {
+	return cm.supportInline
+}
+
 func (cm *metafile) Destroy(ctx context.Context) (err error) {
 	keyPrefix := GenChunkCommonKey(cm.id)
 	err = cm.batchDeleteKey(ctx, []byte(keyPrefix))
@@ -318,12 +323,12 @@ func (cm *metafile) Scan(ctx context.Context, startBid proto.BlobID, limit int,
 	return nil
 }
 
-func NewChunkMeta(ctx context.Context, meta core.VuidMeta, db db.MetaHandler) (cm *metafile, err error) {
+func NewChunkMeta(ctx context.Context, config *core.Config, meta core.VuidMeta, db db.MetaHandler) (cm *metafile, err error) {
 	span := trace.SpanFromContextSafe(ctx)
 
 	// check args
-	if db == nil {
-		span.Errorf("db handle is nil, meta:%v", meta)
+	if db == nil || config == nil {
+		span.Errorf("db handle <%v> or config <%v> is nil", meta, config)
 		return nil, bloberr.ErrInvalidParam
 	}
 
@@ -333,8 +338,9 @@ func NewChunkMeta(ctx context.Context, meta core.VuidMeta, db db.MetaHandler) (c
 	}
 
 	cm = &metafile{
-		id: meta.ChunkId,
-		db: db,
+		id:            meta.ChunkId,
+		db:            db,
+		supportInline: config.SupportInline,
 		shardkeyPool: sync.Pool{
 			New: func() interface{} {
 				return make([]byte, shardKeyLen)
