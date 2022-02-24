@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -80,9 +81,8 @@ func TestMemPoolEmpty(t *testing.T) {
 	require.ErrorIs(t, err, rp.ErrNoSuitableSizeClass)
 }
 
-func TestMemPoolAlloc(t *testing.T) {
+func TestMemPoolChanAlloc(t *testing.T) {
 	classes := map[int]int{mb: 1}
-
 	pool := rp.NewMemPool(classes)
 	require.NotNil(t, pool)
 
@@ -93,12 +93,51 @@ func TestMemPoolAlloc(t *testing.T) {
 
 	_, err = pool.Get(mb)
 	require.NoError(t, err)
-	// require.ErrorIs(t, err, rp.ErrPoolLimit)
 
 	// if matched size class, return ErrPoolLimit
 	_, err = pool.Alloc(mb)
 	require.NoError(t, err)
-	// require.ErrorIs(t, err, rp.ErrPoolLimit)
+
+	// if oversize, make new buffer
+	bufm4, err := pool.Alloc(mb4)
+	require.NoError(t, err)
+	require.Equal(t, mb4, len(bufm4))
+	require.Equal(t, mb4, cap(bufm4))
+
+	// put oversize buffer to top class
+	err = pool.Put(bufm4)
+	require.NoError(t, err)
+
+	// maybe get the oversize buffer
+	bufm, err = pool.Get(mb)
+	require.NoError(t, err)
+	require.Equal(t, mb, len(bufm))
+	require.True(t, mb4 == cap(bufm) || mb == cap(bufm))
+
+	err = pool.Put(bufm)
+	require.NoError(t, err)
+}
+
+func TestMemPoolSyncAlloc(t *testing.T) {
+	classes := map[int]int{mb: 1}
+	pool := rp.NewMemPoolWith(classes, func(size, capacity int) rp.Pool {
+		return rp.NewPool(func() interface{} {
+			return make([]byte, size)
+		}, capacity)
+	})
+	require.NotNil(t, pool)
+
+	bufm, err := pool.Get(mb)
+	require.NoError(t, err)
+	require.Equal(t, mb, len(bufm))
+	require.Equal(t, mb, cap(bufm))
+
+	_, err = pool.Get(mb)
+	require.ErrorIs(t, err, rp.ErrPoolLimit)
+
+	// if matched size class, return ErrPoolLimit
+	_, err = pool.Alloc(mb)
+	require.ErrorIs(t, err, rp.ErrPoolLimit)
 
 	// if oversize, make new buffer
 	bufm4, err := pool.Alloc(mb4)
@@ -119,14 +158,14 @@ func TestMemPoolAlloc(t *testing.T) {
 	err = pool.Put(bufm)
 	require.NoError(t, err)
 
-	// // bufm4 released by gc after two times runtime.GC()
-	// // see sync/pool.go: runtime_registerPoolCleanup(poolCleanup)
-	// runtime.GC()
-	// runtime.GC()
-	// bufm, err = pool.Get(mb)
-	// require.NoError(t, err)
-	// require.Equal(t, mb, len(bufm))
-	// require.Equal(t, mb, cap(bufm))
+	// bufm4 released by gc after twice runtime.GC()
+	// see sync/pool.go: runtime_registerPoolCleanup(poolCleanup)
+	runtime.GC()
+	runtime.GC()
+	bufm, err = pool.Get(mb)
+	require.NoError(t, err)
+	require.Equal(t, mb, len(bufm))
+	require.Equal(t, mb, cap(bufm))
 }
 
 func TestMemPoolPutGet(t *testing.T) {

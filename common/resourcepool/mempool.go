@@ -47,8 +47,17 @@ type PoolStatus struct {
 	Idle     int `json:"idle"`
 }
 
-// NewMemPool new MemPool with self-defined size-class and capacity
+// NewMemPool returns a MemPool within chan pool
 func NewMemPool(sizeClasses map[int]int) *MemPool {
+	return NewMemPoolWith(sizeClasses, func(size, capacity int) Pool {
+		return NewChanPool(func() []byte {
+			return make([]byte, size)
+		}, capacity)
+	})
+}
+
+// NewMemPoolWith new MemPool with size-class and self-defined pool
+func NewMemPoolWith(sizeClasses map[int]int, newPool func(size, capacity int) Pool) *MemPool {
 	pool := make([]Pool, 0, len(sizeClasses))
 	poolSize := make([]int, 0, len(sizeClasses))
 	for sizeClass := range sizeClasses {
@@ -59,10 +68,7 @@ func NewMemPool(sizeClasses map[int]int) *MemPool {
 
 	sort.Ints(poolSize)
 	for _, sizeClass := range poolSize {
-		size, capacity := sizeClass, sizeClasses[sizeClass]
-		pool = append(pool, NewChanPool(func() []byte {
-			return make([]byte, size)
-		}, capacity))
+		pool = append(pool, newPool(sizeClass, sizeClasses[sizeClass]))
 	}
 
 	return &MemPool{
