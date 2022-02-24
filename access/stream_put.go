@@ -100,6 +100,13 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 		span.AppendRPCTrackLog([]string{putTime.String()})
 	}()
 
+	// concurrent buffer in per request
+	const concurrence = 4
+	ready := make(chan struct{}, concurrence)
+	for range [concurrence]struct{}{} {
+		ready <- struct{}{}
+	}
+
 	encoder := h.encoder[selectedCodeMode]
 	tactic := selectedCodeMode.Tactic()
 	for _, blob := range location.Spread() {
@@ -145,9 +152,11 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 		// takeover the buffer, release to pool in function writeToBlobnodes
 		takeoverBuffer := buffer
 		buffer = nil
+		<-ready
 		startWrite := time.Now()
 		err = h.writeToBlobnodesWithHystrix(ctx, blobident, shards, func() {
 			takeoverBuffer.Release()
+			ready <- struct{}{}
 		})
 		putTime.IncW(time.Since(startWrite))
 		if err != nil {
