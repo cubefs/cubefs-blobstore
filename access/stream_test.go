@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/cubefs/blobstore/access/controller"
 	"github.com/cubefs/blobstore/common/codemode"
 )
 
@@ -49,6 +50,10 @@ func TestAccessStreamConfig(t *testing.T) {
 
 func TestAccessStreamNew(t *testing.T) {
 	require.Equal(t, idc, streamer.IDC)
+
+	require.Panics(t, func() {
+		NewStreamHandler(&StreamConfig{IDC: "idc"}, nil, nil)
+	})
 }
 
 func TestAccessStreamDelete(t *testing.T) {
@@ -61,4 +66,31 @@ func TestAccessStreamDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	dataShards.clean()
+}
+
+func TestAccessStreamAdmin(t *testing.T) {
+	{
+		handler := Handler{}
+		sa := handler.Admin()
+		require.NotNil(t, sa)
+
+		admin := sa.(*streamAdmin)
+		require.Nil(t, admin.memPool)
+		require.Nil(t, admin.controller)
+	}
+	{
+		sa := streamer.Admin()
+		require.NotNil(t, sa)
+
+		admin := sa.(*streamAdmin)
+		require.NotNil(t, admin.memPool)
+		t.Log("mempool status:", admin.memPool.Status())
+
+		ctr := admin.controller
+		require.NotNil(t, ctr)
+		t.Log("region:", ctr.Region())
+		require.Error(t, ctr.ChangeChooseAlg(controller.AlgChoose(100)))
+		require.NoError(t, ctr.ChangeChooseAlg(controller.AlgRandom))
+		require.NoError(t, ctr.ChangeChooseAlg(controller.AlgAvailable))
+	}
 }

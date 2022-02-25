@@ -48,7 +48,7 @@ func setUp() (*rpc.Router, []rpc.ProgressHandler) {
 	gService = New(gConfig)
 	// register all self functions of service
 	gService.RegisterService()
-	gService.RegisterStatus()
+	gService.RegisterAdminHandler()
 	return NewHandler(gService), nil
 }
 

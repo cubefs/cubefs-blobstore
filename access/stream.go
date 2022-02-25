@@ -108,8 +108,9 @@ type StreamHandler interface {
 }
 
 type streamAdmin struct {
-	config  StreamConfig
-	memPool *resourcepool.MemPool
+	config     StreamConfig
+	memPool    *resourcepool.MemPool
+	controller controller.ClusterController
 }
 
 // StreamConfig access stream handler config
@@ -311,8 +312,9 @@ func (h *Handler) Delete(ctx context.Context, location *access.Location) error {
 // Admin returns internal admin interface.
 func (h *Handler) Admin() interface{} {
 	return &streamAdmin{
-		config:  h.StreamConfig,
-		memPool: h.memPool,
+		config:     h.StreamConfig,
+		memPool:    h.memPool,
+		controller: h.clusterController,
 	}
 }
 

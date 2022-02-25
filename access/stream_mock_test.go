@@ -387,10 +387,17 @@ func initMockData() {
 
 	ctr = gomock.NewController(&testing.T{})
 	c := NewMockClusterController(ctr)
-	c.EXPECT().Region().AnyTimes().Return("")
+	c.EXPECT().Region().AnyTimes().Return("test-region")
 	c.EXPECT().ChooseOne().AnyTimes().Return(clusterInfo, nil)
 	c.EXPECT().GetServiceController(gomock.Any()).AnyTimes().Return(serviceController, nil)
 	c.EXPECT().GetVolumeGetter(gomock.Any()).AnyTimes().Return(volumeGetter, nil)
+	c.EXPECT().ChangeChooseAlg(gomock.Any()).AnyTimes().DoAndReturn(
+		func(alg controller.AlgChoose) error {
+			if alg < 10 {
+				return nil
+			}
+			return controller.ErrInvalidChooseAlg
+		})
 	cc = c
 
 	ctr = gomock.NewController(&testing.T{})

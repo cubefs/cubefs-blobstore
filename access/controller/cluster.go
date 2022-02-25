@@ -50,6 +50,11 @@ const (
 	maxAlg
 )
 
+// IsValid returns valid algorithm or not.
+func (alg AlgChoose) IsValid() bool {
+	return alg > minAlg && alg < maxAlg
+}
+
 func (alg AlgChoose) String() string {
 	switch alg {
 	case AlgAvailable:
@@ -63,8 +68,8 @@ func (alg AlgChoose) String() string {
 
 // errors
 var (
-	ErrNoSuchCluster   = errors.New("cluster not found")
-	ErrInvalidAllocAlg = errors.New("invalid alloc algorithm")
+	ErrNoSuchCluster    = errors.New("controller: no such cluster")
+	ErrInvalidChooseAlg = errors.New("controller: invalid cluster chosen algorithm")
 )
 
 // ClusterController controller of clusters in one region
@@ -83,11 +88,6 @@ type ClusterController interface {
 	GetConfig(ctx context.Context, key string) (string, error)
 	// ChangeChooseAlg change alloc algorithm
 	ChangeChooseAlg(alg AlgChoose) error
-}
-
-// IsValidAlg choose algorithm is valid or not
-func IsValidAlg(alg AlgChoose) bool {
-	return alg > minAlg && alg < maxAlg
 }
 
 // ClusterConfig cluster config
@@ -321,8 +321,8 @@ func (c *clusterControllerImpl) ChooseOne() (*cmapi.ClusterInfo, error) {
 }
 
 func (c *clusterControllerImpl) ChangeChooseAlg(alg AlgChoose) error {
-	if !IsValidAlg(alg) {
-		return ErrInvalidAllocAlg
+	if !alg.IsValid() {
+		return ErrInvalidChooseAlg
 	}
 
 	atomic.StoreUint32(&c.allocAlg, uint32(alg))

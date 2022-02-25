@@ -24,6 +24,7 @@ import (
 
 	consulapi "github.com/hashicorp/consul/api"
 
+	"github.com/cubefs/blobstore/access/controller"
 	"github.com/cubefs/blobstore/api/access"
 	"github.com/cubefs/blobstore/cmd"
 	"github.com/cubefs/blobstore/common/consul"
@@ -143,8 +144,8 @@ func (s *Service) RegisterService() {
 	}
 }
 
-// RegisterStatus register status handler to profile
-func (s *Service) RegisterStatus() {
+// RegisterAdminHandler register admin handler to profile
+func (s *Service) RegisterAdminHandler() {
 	profile.HandleFunc(http.MethodGet, "/access/status", func(c *rpc.Context) {
 		status := new(accessStatus)
 		status.Limit = s.limiter.Status()
@@ -155,6 +156,30 @@ func (s *Service) RegisterStatus() {
 		}
 		c.RespondJSON(status)
 	})
+	profile.HandleFunc(http.MethodPost, "/access/stream/controller/alg/:alg", func(c *rpc.Context) {
+		algInt, err := strconv.Atoi(c.Param.ByName("alg"))
+		if err != nil || algInt < 0 {
+			c.RespondWith(http.StatusBadRequest, "", []byte(err.Error()))
+			return
+		}
+
+		alg := controller.AlgChoose(algInt)
+		if sa := s.streamHandler.Admin(); sa != nil {
+			if admin, ok := sa.(*streamAdmin); ok {
+				if err := admin.controller.ChangeChooseAlg(alg); err != nil {
+					c.RespondWith(http.StatusForbidden, "", []byte(err.Error()))
+					return
+				}
+
+				span := trace.SpanFromContextSafe(c.Request.Context())
+				span.Warnf("change cluster choose algorithm to (%d %s)", alg, alg.String())
+				c.Respond()
+				return
+			}
+		}
+
+		c.RespondStatus(http.StatusServiceUnavailable)
+	}, rpc.OptArgsURI())
 }
 
 // Limit rps controller

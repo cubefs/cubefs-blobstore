@@ -246,10 +246,10 @@ func TestAccessClusterChangeChooseAlg(t *testing.T) {
 		alg controller.AlgChoose
 		err error
 	}{
-		{0, controller.ErrInvalidAllocAlg},
+		{0, controller.ErrInvalidChooseAlg},
 		{controller.AlgAvailable, nil},
 		{controller.AlgRandom, nil},
-		{1024, controller.ErrInvalidAllocAlg},
+		{1024, controller.ErrInvalidChooseAlg},
 	}
 
 	for _, cs := range cases {
