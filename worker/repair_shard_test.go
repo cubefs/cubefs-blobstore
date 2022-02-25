@@ -16,7 +16,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -214,7 +213,7 @@ func testShardRepair(t *testing.T, mode codemode.CodeMode) {
 		getter.Delete(context.Background(), localReplica.Vuid, 1)
 		getter.Delete(context.Background(), replicas[1].Vuid, 1)
 		err = repairer.RepairShard(context.Background(), task)
-		fmt.Println("keno localIdxs ", localIdxs)
+		t.Log("keno localIdxs", localIdxs)
 		require.NoError(t, err)
 		checkRepairShardResult(t, getter, replicas, replicasCrc32)
 	}

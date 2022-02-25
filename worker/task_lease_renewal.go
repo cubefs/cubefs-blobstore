@@ -119,7 +119,6 @@ func (tr *TaskRenter) stopRenewalFailTask(ctx context.Context, ret *api.TaskRene
 	}
 }
 
-//////////////////////////
 func genRenewalArgs(runners []*TaskRunner) map[string]struct{} {
 	m := make(map[string]struct{})
 	for _, r := range runners {

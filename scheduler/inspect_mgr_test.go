@@ -16,7 +16,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -114,12 +113,9 @@ func TestInspectMgr(t *testing.T) {
 		for {
 			select {
 			case <-ctx.Done():
-				fmt.Println("return finish")
 				return
 			default:
-				// fmt.Printf("start AcquireInspect\n")
 				task, err := mgr.AcquireInspect(ctx)
-				// fmt.Printf("start AcquireInspect task %+v err %+v\n", task, err)
 				time.Sleep(10 * time.Millisecond)
 				if err == nil {
 					retInfo := doInspectTest(task.Replicas[0].Vuid.Vid())
@@ -128,7 +124,6 @@ func TestInspectMgr(t *testing.T) {
 						InspectErrStr: retInfo.errStr(),
 						MissedShards:  retInfo.FailShards,
 					}
-					// fmt.Printf("CompleteInspect task %+v\n", task)
 					if !retInfo.Timeout {
 						mgr.CompleteInspect(ctx, &inspectRet)
 					}
@@ -218,7 +213,7 @@ func TestCollectVolInspectBads(t *testing.T) {
 	}
 	bads, err := mgr.collectVolInspectBads(ctx, volMissedShards)
 	require.NoError(t, err)
-	fmt.Printf("bads %+v", bads)
+	t.Logf("bads %+v", bads)
 	require.Equal(t, 3, len(bads[1]))
 	require.Equal(t, uint8(0), bads[1][0])
 	require.Equal(t, uint8(1), bads[1][1])

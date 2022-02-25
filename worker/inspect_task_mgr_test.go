@@ -69,7 +69,6 @@ func testDodoInspect(t *testing.T, mode codemode.CodeMode) {
 	var expectMissedShard []*proto.MissedShard
 	ret = mgr.doInspect(context.Background(), &task)
 	require.NoError(t, ret.Err())
-	fmt.Printf("ret %+v", ret)
 	verifyInspectResult(t, expectMissedShard, ret.MissedShards)
 
 	// delete one bid
@@ -87,10 +86,8 @@ func testDodoInspect(t *testing.T, mode codemode.CodeMode) {
 	verifyInspectResult(t, expectMissedShard, ret.MissedShards)
 
 	// delete m
-
 	delStartIdx := 1
 	delEndIdx := m
-	fmt.Printf("len(replicas[delStartIdx:delEndIdx]) %d", len(replicas[delStartIdx:delEndIdx]))
 	for _, replica := range replicas[delStartIdx:delEndIdx] {
 		getter.Delete(context.Background(), replica.Vuid, 1)
 		expectMissedShard = append(expectMissedShard, &proto.MissedShard{Vuid: replica.Vuid, Bid: 1})
@@ -135,7 +132,7 @@ func verifyInspectResult(t *testing.T, expect, FailShards []*proto.MissedShard) 
 
 	for _, e := range FailShards {
 		_, ok := expectM[missedShardStr(e)]
-		require.Equal(t, true, ok)
+		require.True(t, ok)
 	}
 }
 

@@ -16,7 +16,6 @@ package base
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,13 +34,13 @@ func TestSubtraction(t *testing.T) {
 }
 
 func TestHumanRead(t *testing.T) {
-	fmt.Println(bytesCntFormat(0))
-	fmt.Println(bytesCntFormat(1024*1024*1024*1024*1024*1024 + 1))
+	t.Log(bytesCntFormat(0))
+	t.Log(bytesCntFormat((1 << 60) + 1))
 }
 
 func TestDataMountBytePrintEx(t *testing.T) {
 	dataMountBytes := [counter.SLOT]int{
-		1024*1024*1024*1024*1024*1024 + 1,
+		(1 << 60) + 1,
 		2445979449, 2363491431, 2122318836,
 		4341106710, 3521119887, 3681901617,
 		3697979790, 4244637672, 3424650849,
@@ -49,8 +48,7 @@ func TestDataMountBytePrintEx(t *testing.T) {
 		4855608246, 5161093533, 5064624495,
 		4855608246, 4984233630, 512, 0,
 	}
-	r := DataMountFormat(dataMountBytes)
-	fmt.Print(r)
+	t.Log(DataMountFormat(dataMountBytes))
 }
 
 func TestLoopExecUntilSuccess(t *testing.T) {

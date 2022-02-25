@@ -17,7 +17,6 @@ package worker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -42,19 +41,9 @@ type mockWorker struct {
 }
 
 func (w *mockWorker) GenTasklets(ctx context.Context) ([]Tasklet, *WorkError) {
-	tasklets := []Tasklet{
-		{bids: mockGenTasklet([]proto.BlobID{1})},
-		{bids: mockGenTasklet([]proto.BlobID{2})},
-		{bids: mockGenTasklet([]proto.BlobID{3})},
-		{bids: mockGenTasklet([]proto.BlobID{4})},
-		{bids: mockGenTasklet([]proto.BlobID{5})},
-		{bids: mockGenTasklet([]proto.BlobID{6})},
-		{bids: mockGenTasklet([]proto.BlobID{7})},
-		{bids: mockGenTasklet([]proto.BlobID{8})},
-		{bids: mockGenTasklet([]proto.BlobID{9})},
-		{bids: mockGenTasklet([]proto.BlobID{10})},
-		{bids: mockGenTasklet([]proto.BlobID{11})},
-		{bids: mockGenTasklet([]proto.BlobID{12})},
+	tasklets := make([]Tasklet, 0, 12)
+	for id := proto.BlobID(1); id <= 12; id++ {
+		tasklets = append(tasklets, Tasklet{bids: mockGenTasklet([]proto.BlobID{id})})
 	}
 	if w.genTaskletsErr != nil {
 		return tasklets, SrcError(w.genTaskletsErr)
@@ -63,7 +52,6 @@ func (w *mockWorker) GenTasklets(ctx context.Context) ([]Tasklet, *WorkError) {
 }
 
 func (w *mockWorker) ExecTasklet(ctx context.Context, t Tasklet) *WorkError {
-	fmt.Println("ExecTasklet ", t)
 	time.Sleep(time.Duration(w.sleepS) * time.Second)
 	w.taskLetCntMu.Lock()
 	defer w.taskLetCntMu.Unlock()
@@ -95,18 +83,10 @@ func (w *mockWorker) TaskType() string {
 }
 
 func (w *mockWorker) GetBenchmarkBids() (bids []*ShardInfoSimple) {
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 1})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 2})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 3})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 4})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 5})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 6})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 7})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 8})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 9})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 10})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 11})
-	bids = append(bids, &ShardInfoSimple{Size: 0, Bid: 12})
+	bids = make([]*ShardInfoSimple, 0, 12)
+	for id := proto.BlobID(1); id <= 12; id++ {
+		bids = append(bids, &ShardInfoSimple{Size: 0, Bid: id})
+	}
 	return
 }
 
@@ -148,7 +128,7 @@ func TestTaskRunner(t *testing.T) {
 	}
 
 	// test stop
-	fmt.Println("start test tasklet stop")
+	t.Log("start test tasklet stop")
 	w1 := mockWorker{
 		taskRetErr:  nil,
 		checkRetErr: nil,
@@ -165,7 +145,7 @@ func TestTaskRunner(t *testing.T) {
 	require.Equal(t, true, w1.taskLetCnt < 12)
 
 	// test tasklet fail
-	fmt.Println("start test tasklet fail")
+	t.Log("start test tasklet fail")
 	w2 := mockWorker{
 		taskRetErr:  errors.New("mock fail"),
 		failIdx:     3,
@@ -180,14 +160,14 @@ func TestTaskRunner(t *testing.T) {
 	require.Equal(t, true, w1.taskLetCnt < 12)
 
 	// test check fail
-	fmt.Println("start test check fail")
+	t.Log("start test check fail")
 	w3 := mockWorker{
 		taskRetErr:  nil,
 		checkRetErr: errors.New("mock check fail"),
 		sleepS:      0,
 	}
 
-	fmt.Printf("-------------->runner3 start run\n")
+	t.Log("runner3 start run")
 	runner3 := NewTaskRunner(context.Background(), "test_mock_task", &w3, idc, 3, &cli)
 	cli.wg.Add(1)
 	go runner3.Run()
@@ -196,7 +176,7 @@ func TestTaskRunner(t *testing.T) {
 	require.Equal(t, 12, w3.taskLetCnt)
 
 	// test genTasklet fail
-	fmt.Println("start test genTasklet fail")
+	t.Log("start test genTasklet fail")
 	w4 := mockWorker{
 		taskRetErr:     nil,
 		genTaskletsErr: errors.New("mock check fail"),
@@ -210,7 +190,7 @@ func TestTaskRunner(t *testing.T) {
 	require.Equal(t, 0, w4.taskLetCnt)
 
 	// test tasklet complete
-	fmt.Println("start test tasklet complete")
+	t.Log("start test tasklet complete")
 	w5 := mockWorker{
 		sleepS: 0,
 	}

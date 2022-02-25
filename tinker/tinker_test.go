@@ -25,6 +25,8 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/mock/gomock"
+
+	"github.com/cubefs/blobstore/util/log"
 )
 
 const (
@@ -40,6 +42,10 @@ type mockEncoder struct{}
 
 func (m *mockEncoder) Encode(v interface{}) error { return nil }
 func (m *mockEncoder) Close() error               { return nil }
+
+func init() {
+	log.SetOutputLevel(log.Lfatal)
+}
 
 func NewBroker(t *testing.T) *sarama.MockBroker {
 	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)

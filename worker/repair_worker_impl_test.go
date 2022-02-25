@@ -16,7 +16,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,11 +48,10 @@ func TestGenTasklets(t *testing.T) {
 	getter := NewMockGetterWithBids(replicas, codemode.CodeMode(mode), bids, sizes)
 	w := NewRepairWorker(VolRepairTaskEx{taskInfo: &taskInfo, blobNodeCli: getter, downloadShardConcurrency: 1})
 	tasklets, _ := w.GenTasklets(context.Background())
-	fmt.Printf("tasklets %+v\n", tasklets)
+	t.Logf("tasklets %+v", tasklets)
 	// require.Equal(t, nil, err)
 	require.Equal(t, 0, len(tasklets))
 
-	fmt.Printf("-------------test dst set fail\n")
 	getter.setFail(replicas[badi].Vuid, errors.New("fake error"))
 	_, err := w.GenTasklets(context.Background())
 	require.Equal(t, DstErr, err.errType)
@@ -115,9 +113,8 @@ func TestExecTasklet(t *testing.T) {
 	require.Equal(t, 3, len(tasklets))
 
 	for _, tasklet := range tasklets {
-		fmt.Printf("====>recover tasklet.bids len %d\n", len(tasklet.bids))
 		werr := w.ExecTasklet(context.Background(), tasklet)
-		fmt.Printf("werr %+v", werr)
+		t.Logf("recover tasklet.bids len %d, werr %+v", len(tasklet.bids), werr)
 	}
 
 	for _, shard := range shards {

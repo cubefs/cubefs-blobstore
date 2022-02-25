@@ -72,8 +72,7 @@ func TestReport(t *testing.T) {
 	require.Equal(t, 10, len(tm.GetBalanceAliveTask()))
 	require.Equal(t, 10, len(tm.GetDiskDropAliveTask()))
 
-	//////test renewal fail
-
+	// test renewal fail
 	tm2 := initTestTaskRunnerMgr(t, 10)
 	time.Sleep(200 * time.Millisecond)
 	reportCli2 := MockReportCli{

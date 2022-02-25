@@ -15,7 +15,6 @@
 package base
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,11 +37,11 @@ func TestShardBufPool(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, bufSize, len(b))
 		allocBufs[i] = b
-		fmt.Printf("cap %d len %d\n", cap(b), len(b))
+		t.Logf("cap %d len %d", cap(b), len(b))
 	}
 
 	b, err = bufPool.Get()
-	fmt.Printf("cap %d len %d\n", cap(b), len(b))
+	t.Logf("cap %d len %d", cap(b), len(b))
 	require.Error(t, err)
 	require.EqualError(t, ErrMemNotEnough, err.Error())
 

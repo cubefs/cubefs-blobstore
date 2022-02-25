@@ -16,7 +16,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -186,8 +185,7 @@ func TestMigrateExecTasklet(t *testing.T) {
 		require.Equal(t, 4, len(tasklets))
 
 		for _, tasklet := range tasklets {
-			werr := w.ExecTasklet(context.Background(), tasklet)
-			fmt.Println(werr)
+			t.Log(w.ExecTasklet(context.Background(), tasklet))
 		}
 
 		for _, shard := range shards {

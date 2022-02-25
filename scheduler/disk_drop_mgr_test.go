@@ -16,7 +16,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -133,7 +132,6 @@ func testDropTaskLoad(t *testing.T) {
 }
 
 func testCollectDropTask(t *testing.T) {
-	fmt.Printf("-----------------TestCollectDropTask---------------\n")
 	mgr, err := initDiskDropMgr(nil, MockDiskDropTasks(), MockDisksMap)
 	require.NoError(t, err)
 	MockEmptyVolTaskLocker()
@@ -160,8 +158,6 @@ func testCollectDropTask(t *testing.T) {
 	}
 	mgr2.Progress(context.Background())
 
-	fmt.Printf("-----------------end TestCollectDropTask---------------\n")
-
 	MockEmptyVolTaskLocker()
 	mgr1, err := initDiskDropMgr(nil, MockDiskDropTasks(), nil)
 	require.NoError(t, err)
@@ -181,7 +177,7 @@ func testCheckDropped(t *testing.T) {
 	require.Equal(t, 7, len(tasks))
 
 	inited, prepared, completed := mgr.StatQueueTaskCnt()
-	fmt.Printf("inited %d, prepared %d, completed %d\n", inited, prepared, completed)
+	t.Logf("inited %d, prepared %d, completed %d", inited, prepared, completed)
 	mgr.migrateMgr.prepareTask()
 	mgr.migrateMgr.prepareTask()
 	mgr.migrateMgr.prepareTask()
@@ -216,7 +212,7 @@ func testCheckDropped(t *testing.T) {
 	err = mgr.migrateMgr.finishTask()
 	require.NoError(t, err)
 	inited, prepared, completed = mgr.StatQueueTaskCnt()
-	fmt.Printf("inited %d, prepared %d, completed %d\n", inited, prepared, completed)
+	t.Logf("inited %d, prepared %d, completed %d", inited, prepared, completed)
 	mgr.cmCli.(*mockMigrateCmClient).volInfoMap = nil
 	dropped := mgr.checkDropped(context.Background(), 4)
 	require.Equal(t, true, dropped)

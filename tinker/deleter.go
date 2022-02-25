@@ -309,7 +309,6 @@ func (mgr *DeleteMgr) GetErrorStats() (errStats []string, totalErrCnt uint64) {
 	return base.FormatPrint(statsResult), totalErrCnt
 }
 
-///////////////
 type deleteTopicConsumer struct {
 	taskSwitch *taskswitch.TaskSwitch
 
@@ -427,7 +426,7 @@ func (d *deleteTopicConsumer) handleMsgBatch(ctx context.Context, mqMsgs []*sara
 				delayMsgs = append(delayMsgs, ret.delMsg)
 
 			case DelUnexpect:
-				span.Warn("unexpected result will ignore: msg[%+v], err[%+v]", ret.delMsg, ret.err)
+				span.Warnf("unexpected result will ignore: msg[%+v], err[%+v]", ret.delMsg, ret.err)
 			}
 		}
 

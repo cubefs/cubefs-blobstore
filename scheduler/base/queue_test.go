@@ -15,7 +15,6 @@
 package base
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -92,7 +91,6 @@ func TestQueue(t *testing.T) {
 	require.EqualError(t, err, ErrNoSuchMessageID.Error())
 }
 
-//--------------------------------
 type mockWorkerTask struct {
 	src []proto.VunitLocation
 	dst proto.VunitLocation
@@ -174,7 +172,6 @@ func TestTaskQueue(t *testing.T) {
 	require.EqualError(t, err, ErrNoSuchMessageID.Error())
 }
 
-//--------------------------------------------------
 func newTestWorkerTaskQueue(cancelPunishDuration, renewDuration time.Duration) *WorkerTaskQueue {
 	return &WorkerTaskQueue{
 		idcQueues:            make(map[string]*Queue),
@@ -262,11 +259,4 @@ func TestWorkerTaskQueue(t *testing.T) {
 	require.EqualError(t, err, ErrUnmatchedVuids.Error())
 	_, err = wq.Complete(idc, taskID2, vunits([]proto.Vuid{4, 5, 6}), vunit(4))
 	require.EqualError(t, err, ErrUnmatchedVuids.Error())
-}
-
-func TestTimeBefore(t *testing.T) {
-	now1 := time.Now()
-	time.Sleep(time.Second)
-	// now2 := time.Now()
-	fmt.Printf("now1 %+v befor now1 %+v bool %+v\n", now1, now1, now1.After(now1))
 }

@@ -15,7 +15,6 @@
 package base
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ func TestTaskStatisticsMgr(t *testing.T) {
 
 	task, err := mgr.QueryTaskDetail("repair_task_1")
 	require.NoError(t, err)
-	fmt.Println(task.Statistics)
+	t.Logf("%+v", task.Statistics)
 
 	increaseDataSize, increaseShardCnt := mgr.Counters()
 	var increaseDataSizeVec [counter.SLOT]int

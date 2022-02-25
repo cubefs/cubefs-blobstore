@@ -22,6 +22,7 @@ import (
 	"github.com/Shopify/sarama"
 
 	"github.com/cubefs/blobstore/tinker/db"
+	"github.com/cubefs/blobstore/util/log"
 )
 
 const testTopic = "test_topic"
@@ -31,6 +32,10 @@ var (
 
 	errMock = errors.New("mock error")
 )
+
+func init() {
+	log.SetOutputLevel(log.Lfatal)
+}
 
 func newBroker(t *testing.T) *sarama.MockBroker {
 	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)

@@ -25,9 +25,13 @@ import (
 	"github.com/cubefs/blobstore/scheduler/base"
 	"github.com/cubefs/blobstore/scheduler/client"
 	"github.com/cubefs/blobstore/scheduler/db"
+	"github.com/cubefs/blobstore/util/log"
 )
 
-// ----------------------------------------------------------------------------mock cluster manager
+func init() {
+	log.SetOutputLevel(log.Lfatal)
+}
+
 type mockBaseCmClient struct{}
 
 func NewMockClusterManagerClient() client.IClusterMgr {
@@ -102,7 +106,6 @@ func (cm *mockBaseCmClient) ReleaseVolumeUnit(ctx context.Context, vuid proto.Vu
 	return
 }
 
-// ----------------------------------------------------------------------------mock tinker
 type mockBaseTinkerClient struct{}
 
 func NewMockTinkerClient() client.ITinker {
@@ -113,7 +116,6 @@ func (tinker *mockBaseTinkerClient) UpdateVol(ctx context.Context, host string, 
 	return
 }
 
-//-------------------------------------------------
 type mockMqProxy struct{}
 
 func (m *mockMqProxy) SendShardRepairMsg(ctx context.Context, vid proto.Vid, bid proto.BlobID, badIdx []uint8) error {
@@ -181,7 +183,6 @@ func (m *MockVolsList) GetVolumeInfo(ctx context.Context, Vid proto.Vid) (ret *c
 	return nil, errors.New("not found")
 }
 
-// ----------------------------------------------------------------------------mock migrate tbl
 type mockBaseMigrateTbl struct {
 	respErr error
 
@@ -190,12 +191,10 @@ type mockBaseMigrateTbl struct {
 }
 
 func NewMockMigrateTbl(respErr error, taskMap map[string]*proto.MigrateTask) (tbl db.IMigrateTaskTbl) {
-	tbl = &mockBaseMigrateTbl{
+	return &mockBaseMigrateTbl{
 		tasksMap: copyMap(taskMap),
 		respErr:  respErr,
 	}
-
-	return
 }
 
 func (tbl *mockBaseMigrateTbl) Insert(ctx context.Context, task *proto.MigrateTask) error {
@@ -304,7 +303,6 @@ func (tbl *mockBaseMigrateTbl) FindMarkDeletedTask(ctx context.Context) (tasks [
 	return tasks, tbl.respErr
 }
 
-// ----------------------------------------------------------------------------mock service register tbl
 type MockBaseServiceRegisterTbl struct {
 	respErr error
 	svrMap  map[string]*proto.SvrInfo
@@ -357,7 +355,6 @@ func (tbl *MockBaseServiceRegisterTbl) FindAll(ctx context.Context, module, idc 
 	return svrs, tbl.respErr
 }
 
-// ----------------------------------------------------------------------------mock checkpoint tbl
 type mockCheckpointTbl struct {
 	ck proto.InspectCheckPoint
 }
@@ -381,7 +378,6 @@ func (m *mockCheckpointTbl) SaveCheckPoint(ctx context.Context, startVid proto.V
 	return nil
 }
 
-// ----------------------------------------------------------------------------mock document init
 func mockGenMigrateTask(idc string, diskID proto.DiskID, vid proto.Vid, state proto.MigrateSate, volInfoMap map[proto.Vid]*client.VolumeInfoSimple) (task *proto.MigrateTask) {
 	srcs := volInfoMap[vid].VunitLocations
 

@@ -106,7 +106,6 @@ func (t *inspectTaskInfo) completed() bool {
 	return t.ret != nil
 }
 
-//----------------------
 type badShardDeduplicator struct {
 	l              sync.Mutex
 	badShards      map[string]struct{}

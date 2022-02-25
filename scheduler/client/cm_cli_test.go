@@ -30,12 +30,17 @@ import (
 	cmerrors "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/taskswitch"
+	"github.com/cubefs/blobstore/util/log"
 )
 
 var (
 	defaultVolumeListMarker = proto.Vid(0)
 	defaultDiskListMarker   = proto.DiskID(0)
 )
+
+func init() {
+	log.SetOutputLevel(log.Lfatal)
+}
 
 type mockCM struct {
 	kv   map[string]string

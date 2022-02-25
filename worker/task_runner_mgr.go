@@ -257,8 +257,6 @@ func (tm *TaskRunnerMgr) removeStoppedRunner() {
 	tm.manualMigrate = removeStoppedRunner(tm.manualMigrate)
 }
 
-//////////////////////////////////////////////
-
 func removeStoppedRunner(tasks map[string]*TaskRunner) map[string]*TaskRunner {
 	newTasks := make(map[string]*TaskRunner)
 	for taskID, task := range tasks {

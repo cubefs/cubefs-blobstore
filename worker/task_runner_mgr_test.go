@@ -70,7 +70,6 @@ func (w *mockRepairWorker) GenTasklets(ctx context.Context) ([]Tasklet, *WorkErr
 }
 
 func (w *mockRepairWorker) ExecTasklet(ctx context.Context, t Tasklet) *WorkError {
-	fmt.Printf("mockRepairWorker do %v\n", t)
 	return SrcError(w.taskletRetErr)
 }
 
@@ -98,7 +97,6 @@ func (w *mockRepairWorker) GetBenchmarkBids() []*ShardInfoSimple {
 	return nil
 }
 
-/////////////////////////////
 type mockMigrateWorker struct {
 	tasklet       []Tasklet
 	taskletRetErr error
@@ -117,7 +115,6 @@ func (w *mockMigrateWorker) GenTasklets(ctx context.Context) ([]Tasklet, *WorkEr
 }
 
 func (w *mockMigrateWorker) ExecTasklet(ctx context.Context, t Tasklet) *WorkError {
-	fmt.Printf("mockMigrateWorker do %v\n", t)
 	return nil
 }
 

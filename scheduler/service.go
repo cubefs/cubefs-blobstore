@@ -608,7 +608,6 @@ func (svr *Service) HTTPStats(c *rpc.Context) {
 		FinishedPerMin: fmt.Sprint(finished),
 		TimeOutPerMin:  fmt.Sprint(timeout),
 	}
-	//////
 	taskStats := api.TasksStat{
 		Repair:        repair,
 		Drop:          drop,

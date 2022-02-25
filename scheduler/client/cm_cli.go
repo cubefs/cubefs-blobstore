@@ -73,7 +73,6 @@ func (vol *VolumeInfoSimple) set(info *cmapi.VolumeInfo) {
 		}
 		diskIDMap[repl.DiskID] = struct{}{}
 	}
-	////enc check
 
 	for i := 0; i < len(info.Units); i++ {
 		vol.VunitLocations[i] = proto.VunitLocation{

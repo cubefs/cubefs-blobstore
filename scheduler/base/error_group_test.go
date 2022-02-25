@@ -17,8 +17,9 @@ package base
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGroupWithNErrs(t *testing.T) {
@@ -44,9 +45,7 @@ func TestGroupWithNErrs(t *testing.T) {
 			}
 
 			gotErrs := g.Wait()
-			if !reflect.DeepEqual(gotErrs, tc.errs) {
-				t.Errorf("Expected %#v, got %#v", tc.errs, gotErrs)
-			}
+			require.Equal(t, tc.errs, gotErrs)
 		})
 	}
 }

@@ -15,7 +15,6 @@
 package base
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,6 @@ import (
 	"github.com/cubefs/blobstore/common/proto"
 )
 
-//-------------------------------------------------------------------------------------------------
 var testModes = []codemode.CodeMode{
 	codemode.EC15P12,
 	codemode.EC6P6,
@@ -36,12 +34,9 @@ var testModes = []codemode.CodeMode{
 
 func testWithAllMode(t *testing.T, testFunc func(t *testing.T, mode codemode.CodeMode)) {
 	for _, mode := range testModes {
-		fmt.Printf("---->test mode %d\n", mode)
 		testFunc(t, mode)
 	}
 }
-
-//--------------------------------------------------------------------------------------------------
 
 type stripeLayoutTest struct {
 	N [][]int
@@ -332,8 +327,6 @@ LoopTest:
 	}
 	require.Equal(t, false, status.CanRecover())
 }
-
-//-------------------------------------------------------------------------------------------------
 
 func genMockVol(vid proto.Vid, mode codemode.CodeMode) ([]proto.VunitLocation, codemode.CodeMode) {
 	modeInfo := mode.Tactic()

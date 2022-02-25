@@ -35,8 +35,7 @@ import (
 	"github.com/cubefs/blobstore/scheduler/db"
 )
 
-//------------------------------------------------------------------------------
-//repair_mgr UT init
+// repair_mgr UT init
 func newMockSwitchMap() map[string]string {
 	return map[string]string{
 		taskswitch.BalanceSwitchName:     taskswitch.SwitchOpen,
@@ -115,8 +114,7 @@ func newMockDisksMap() map[proto.DiskID]*client.DiskInfoSimple {
 	return MockDisksMap
 }
 
-//------------------------------------------------------------------------
-//mock class
+// mock class
 type mockCmClient struct {
 	mu     sync.Mutex
 	RetErr error
@@ -263,9 +261,7 @@ func (m *mockCmClient) ListClusterDisks(ctx context.Context) (disks []*client.Di
 func (m *mockCmClient) ListBrokenDisks(ctx context.Context, count int) (disks []*client.DiskInfoSimple, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	fmt.Printf("===>ListBrokenDisks\n")
 	for _, disk := range m.DisksMap {
-		fmt.Printf("===>disk status %d\n", disk.Status)
 		if disk.Status == proto.DiskStatusBroken {
 			disks = append(disks, disk)
 		}
@@ -317,7 +313,6 @@ func (m *mockCmClient) SetDiskDropped(ctx context.Context, diskID proto.DiskID) 
 func (m *mockCmClient) GetDiskInfo(ctx context.Context, diskID proto.DiskID) (ret *client.DiskInfoSimple, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	fmt.Printf("mockCmClient GetDiskInfo diskID %d\n", diskID)
 	return m.DisksMap[diskID], m.RetErr
 }
 
@@ -329,7 +324,6 @@ func (m *mockCmClient) allDisks() []*client.DiskInfoSimple {
 	return ret
 }
 
-// ---------------------------------------------------------------------------
 // mock vol repair tbl
 type mockBaseRepairTbl struct {
 	retErr error
@@ -444,7 +438,6 @@ func resetMockTbl(tbl *mockBaseRepairTbl, tasks map[string]*proto.VolRepairTask)
 	tbl.tasksMap = tasks
 }
 
-//--------------------------------------------------------------------------------
 func getTaskIDByVid(tasksMap map[string]*proto.VolRepairTask, vid proto.Vid) string {
 	for taskID := range tasksMap {
 		if strings.Contains(taskID, fmt.Sprintf("repair-%d-", vid)) {
@@ -454,8 +447,7 @@ func getTaskIDByVid(tasksMap map[string]*proto.VolRepairTask, vid proto.Vid) str
 	return ""
 }
 
-//-------------------------------------------------------------------------------------------
-//init repair_mgr object
+// init repair_mgr object
 func initRepairMgrWithErr(updateErr error, updateErrCnt int) (*RepairMgr, error) {
 	mgr, err := initRepairMgr()
 	if err != nil {
@@ -486,8 +478,7 @@ func RepairMgrFaultInjection(mgr *RepairMgr, cmCliErr, dbErr error) {
 	mgr.taskTbl.(*mockBaseRepairTbl).retErr = dbErr
 }
 
-//--------------------------------------------------------------------------
-//start ut
+// start ut
 func TestRepairMgr(t *testing.T) {
 	MockEmptyVolTaskLocker()
 
@@ -632,14 +623,10 @@ func testAcquireCancelReclaimComplete(mgr *RepairMgr, t *testing.T) {
 
 	// test reclaim
 	newDst, _ := mgr.cmCli.AllocVolumeUnit(ctx, task.Destination.Vuid)
-	fmt.Printf("===>Destination:%+v\n", task.Destination)
-	fmt.Printf("===>newDst:%+v\n", newDst)
 	err = mgr.ReclaimTask(ctx, task.BrokenDiskIDC, task.TaskID, task.Sources, task.Destination, newDst)
 	require.NoError(t, err)
-	taskTmp, err := mgr.workQueue.Query(task.BrokenDiskIDC, task.TaskID)
+	_, err = mgr.workQueue.Query(task.BrokenDiskIDC, task.TaskID)
 	require.NoError(t, err)
-	fmt.Printf("===>task:%+v\n", task)
-	fmt.Printf("===>taskTmp:%+v\n", taskTmp)
 
 	// test complete
 	completeArgs := api.CompleteTaskArgs{
@@ -727,10 +714,7 @@ func testCheckRepairedAndClear(mgr *RepairMgr, t *testing.T) {
 		mgr.popTaskAndFinish()
 	}
 	repairingDiskID := mgr.getRepairingDiskID()
-	tasks, _ = mgr.taskTbl.FindAll(ctx)
-	for _, task := range tasks {
-		fmt.Printf("keno task state %d\n", task.State)
-	}
+	mgr.taskTbl.FindAll(ctx)
 
 	mgr.checkRepairedAndClear()
 	tasks, err = mgr.taskTbl.FindAll(ctx)
@@ -753,12 +737,11 @@ func TestCollectTaskNotFirst(t *testing.T) {
 
 	mgr.collectTask()
 	brokenDisks, _ := mgr.cmCli.ListBrokenDisks(context.Background(), 1)
-	fmt.Printf("brokenDisks len %d\n", len(brokenDisks))
+	t.Logf("brokenDisks len %d", len(brokenDisks))
 	tasks, _ := mgr.taskTbl.FindAll(context.Background())
 	require.Equal(t, 7, len(tasks))
 	for _, task := range tasks {
 		require.Equal(t, proto.RepairStateInited, task.State)
-		fmt.Printf("taskId %s state %d\n", task.TaskID, task.State)
 	}
 
 	mockCmCli := mgr.cmCli.(*mockCmClient)
@@ -917,7 +900,6 @@ func TestAcquireBrokenDisk(t *testing.T) {
 	}
 
 	disk, err = mgr.acquireBrokenDisk(ctx)
-	fmt.Printf("disk %+v\n", disk)
 	require.NoError(t, err)
 	require.Equal(t, proto.DiskID(888), disk.DiskID)
 }

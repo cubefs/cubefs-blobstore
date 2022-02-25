@@ -356,7 +356,6 @@ func (mgr *BalanceMgr) genUniqTaskID(vid proto.Vid) string {
 	return base.GenTaskID("balance", vid)
 }
 
-//-------------------------------------------------------------------
 func sortVunitByUsed(vunits []*client.VunitInfoSimple) {
 	sort.Slice(vunits, func(i, j int) bool {
 		return vunits[i].Used < vunits[j].Used

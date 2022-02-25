@@ -16,7 +16,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -100,7 +99,6 @@ func TestManualMigrateMgr(t *testing.T) {
 
 	tasks, _ = mgr.migrate.GetAllTasks(context.Background())
 	require.Equal(t, 1, len(tasks))
-	fmt.Printf("tasks %+v\n", tasks[0])
 
 	vid2 := MocManualMigrateInfoMap[20002]
 	err = mgr.AddTask(ctx, vid2.VunitLocations[0].Vuid, false)
@@ -123,7 +121,6 @@ func TestManualMigrateMgr(t *testing.T) {
 	require.Equal(t, 2, len(tasks))
 	for _, task := range tasks {
 		mgr.QueryTask(context.Background(), task.TaskID)
-		fmt.Printf("task %+v\n", task)
 	}
 }
 

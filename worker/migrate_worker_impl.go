@@ -147,7 +147,6 @@ func (w *MigrateWorker) TaskType() (taskType string) {
 	return w.taskType
 }
 
-//----------------------------------------------------------
 func majorityLocked(ctx context.Context, vunitAccess IVunitAccess, replicas []proto.VunitLocation, mode codemode.CodeMode) (success bool) {
 	chunksStat := getChunksStat(ctx, vunitAccess, replicas)
 

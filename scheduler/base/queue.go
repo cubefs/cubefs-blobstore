@@ -109,8 +109,7 @@ func (q *Queue) Pop() (string, interface{}, bool) {
 		}
 	}
 
-	//---------------
-	//no timeout msg in doing ,fetch from todo。
+	// no timeout msg in doing ,fetch from todo
 	if q.todo.Len() == 0 {
 		return "", nil, false
 	}

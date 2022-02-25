@@ -70,7 +70,6 @@ type mScheCli struct {
 }
 
 func (m *mScheCli) AcquireTask(ctx context.Context, args *api.AcquireArgs) (ret *api.WorkerTask, err error) {
-	// fmt.Println("acquire task...")
 	m.id++
 	mode := codemode.EC6P10L2
 	srcReplicas, _ := genMockVol(1, mode)

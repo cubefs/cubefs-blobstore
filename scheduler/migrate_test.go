@@ -17,7 +17,6 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -174,7 +173,6 @@ func MockMigrateAlloc(vuid proto.Vuid) *client.AllocVunitInfo {
 	}
 }
 
-// ----------------------------------------------------------------------------mock cluster client
 type mockMigrateCmClient struct {
 	commRespErr    error
 	disableRespErr bool
@@ -219,8 +217,6 @@ func (m *mockMigrateCmClient) ListVolume(ctx context.Context, vid proto.Vid, cou
 }
 
 func (m *mockMigrateCmClient) GetVolumeInfo(ctx context.Context, Vid proto.Vid) (ret *client.VolumeInfoSimple, err error) {
-	fmt.Printf("GetVolumeInfo vid %d m.volInfoMap[Vid] %+v", Vid, m.volInfoMap[Vid])
-
 	return m.volInfoMap[Vid], m.getErrInfo()
 }
 
@@ -301,8 +297,6 @@ func (m *mockMigrateCmClient) SetDiskDropped(ctx context.Context, diskID proto.D
 }
 
 func (m *mockMigrateCmClient) GetDiskInfo(ctx context.Context, diskID proto.DiskID) (ret *client.DiskInfoSimple, err error) {
-	fmt.Printf("mockCmClient GetDiskInfo diskID %d m.disksMap %+v\n", diskID, m.disksMap)
-
 	return m.disksMap[diskID], m.getErrInfo()
 }
 
@@ -321,7 +315,6 @@ func (m *mockMigrateCmClient) getErrInfo() error {
 	return m.commRespErr
 }
 
-// ----------------------------------------------------------------------------mock tinker client
 type mockMigrateTinkerClient struct {
 	commRespErr error
 }

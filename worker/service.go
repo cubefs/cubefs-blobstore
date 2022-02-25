@@ -462,7 +462,7 @@ func (s *Service) autoRegister() {
 		if err == nil {
 			return
 		}
-		// 随机5-10分钟
+		// random with 5-10 minutes
 		sleepTimeS = time.Duration(rand.Intn(5*60) + 5*60)
 	}
 }

@@ -17,7 +17,6 @@ package worker
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"hash/crc32"
 	"io"
 	"io/ioutil"
@@ -30,19 +29,20 @@ import (
 	"github.com/cubefs/blobstore/common/codemode"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/util/errors"
+	"github.com/cubefs/blobstore/util/log"
 	"github.com/cubefs/blobstore/worker/base"
 	"github.com/cubefs/blobstore/worker/client"
 )
 
-//-------------------------------------------------------------------------------------------------
+func init() {
+	log.SetOutputLevel(log.Lfatal)
+}
+
 func testWithAllMode(t *testing.T, testFunc func(t *testing.T, mode codemode.CodeMode)) {
 	for _, mode := range codemode.GetAllCodeModes() {
-		fmt.Printf("---->test mode %d\n", mode)
 		testFunc(t, mode)
 	}
 }
-
-//--------------------------------------------------------------------------------------------------
 
 func genMockVol(vid proto.Vid, mode codemode.CodeMode) ([]proto.VunitLocation, codemode.CodeMode) {
 	modeInfo := mode.Tactic()
@@ -66,8 +66,6 @@ func genMockBytes(letter byte, size int64) []byte {
 	}
 	return ret
 }
-
-//----------------------------------------------------------------------------------------------------
 
 type MockGetter struct {
 	mu       sync.Mutex
@@ -184,8 +182,6 @@ func (getter *MockGetter) setVunitStatus(vuid proto.Vuid, status api.ChunkStatus
 	}
 }
 
-//----------------------------------------------------------------------------------------------------------------------
-
 func (getter *MockGetter) PutShard(ctx context.Context, location proto.VunitLocation, bid proto.BlobID, size int64, body io.Reader) (err error) {
 	getter.mu.Lock()
 	defer getter.mu.Unlock()
@@ -274,7 +270,6 @@ func (getter *MockGetter) getShardCrc32(vuid proto.Vuid, bid proto.BlobID) uint3
 }
 
 func genParityShards(N, M int, shards [][]byte) {
-	// fmt.Printf("genParityShards N %d M %d len(shards) %d\n", N, M, len(shards))
 	enc, _ := reedsolomon.New(N, M)
 	err := enc.Reconstruct(shards)
 	if err != nil {
@@ -282,7 +277,6 @@ func genParityShards(N, M int, shards [][]byte) {
 	}
 	ok, err := enc.Verify(shards)
 	if err != nil || !ok {
-		fmt.Printf("Verify fail err %+v\n", err)
 		panic("repair: failed to ec verify")
 	}
 }
@@ -295,8 +289,7 @@ func abstractShards(idxs []int, shards [][]byte) [][]byte {
 	return ret
 }
 
-//mockVunit
-//---------------------------------------------------------------------
+// mockVunit
 type mockVunit struct {
 	mu       sync.Mutex
 	vuid     proto.Vuid

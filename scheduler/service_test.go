@@ -17,7 +17,6 @@ package scheduler
 import (
 	"context"
 	baseErr "errors"
-	"fmt"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -168,7 +167,6 @@ func TestServiceAPI(t *testing.T) {
 	svrHost := "127.0.0.1:9999"
 
 	_, err = schedulerCli.GetService(context.Background(), svrHost)
-	fmt.Printf("err %+v\n", err)
 	require.EqualError(t, err, errors.ErrNoSuchService.Error())
 
 	err = schedulerCli.RegisterService(context.Background(), &scheduler.RegisterServiceArgs{})
@@ -275,7 +273,6 @@ func TestTaskAPI(t *testing.T) {
 	require.Equal(t, proto.RepairTaskType, repairTask.TaskType)
 	require.Equal(t, "z0", repairTask.Repair.BrokenDiskIDC)
 	repairTaskID := repairTask.Repair.TaskID
-	fmt.Printf("====>acquire repairTask %+v\n", *repairTask.Repair)
 	balanceTask, err = schedulerCli.AcquireTask(context.Background(), &scheduler.AcquireArgs{IDC: "z0"})
 	require.NoError(t, err)
 	require.Equal(t, proto.BalanceTaskType, balanceTask.TaskType)
@@ -342,7 +339,6 @@ func TestTaskAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	inspectTask, err := schedulerCli.AcquireInspectTask(context.Background())
-	fmt.Printf("inspectTask %+v\n", inspectTask)
 	require.NoError(t, err)
 	require.NotEqual(t, 0, len(inspectTask.Task.TaskId))
 
@@ -381,10 +377,9 @@ func TestTaskAPI(t *testing.T) {
 	})
 	require.EqualError(t, err, errors.ErrIllegalTaskType.Error())
 
-	task, err := schedulerCli.DropTaskDetail(context.Background(), &scheduler.TaskStatArgs{TaskId: ""})
+	_, err = schedulerCli.DropTaskDetail(context.Background(), &scheduler.TaskStatArgs{TaskId: ""})
 	require.Error(t, err)
 	require.EqualError(t, baseErr.New("task not found"), err.Error())
-	fmt.Printf("DropTaskDetail task %+v\n", task)
 
 	_, err = schedulerCli.ManualMigrateTaskDetail(context.Background(), &scheduler.TaskStatArgs{TaskId: ""})
 	require.Error(t, err)
@@ -482,14 +477,9 @@ func newVolRepairTbl() db.IRepairTaskTbl {
 	taskMap[t4.TaskID] = t4
 	taskMap[t5.TaskID] = t5
 
-	for _, t := range taskMap {
-		fmt.Printf("%+v \n", t)
-	}
-
 	return NewMockRepairTbl(nil, taskMap)
 }
 
-//----------------------------------------------------------------------
 func newMockInspectCheckPointTbl() db.IInspectCheckPointTbl {
 	return newMockCheckpointTbl()
 }

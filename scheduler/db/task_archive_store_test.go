@@ -16,7 +16,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 
@@ -24,7 +23,12 @@ import (
 
 	"github.com/cubefs/blobstore/scheduler/base"
 	"github.com/cubefs/blobstore/util/errors"
+	"github.com/cubefs/blobstore/util/log"
 )
+
+func init() {
+	log.SetOutputLevel(log.Lfatal)
+}
 
 type mockSrcTbl struct {
 	mu        sync.Mutex
@@ -69,7 +73,6 @@ type mockArchiveStore struct {
 func (m *mockArchiveStore) Insert(ctx context.Context, record *ArchiveRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	fmt.Printf("mockArchiveStore:insert record %+v\n", record)
 	m.records = append(m.records, record)
 	return nil
 }
@@ -134,7 +137,7 @@ func TestArchiveStore(t *testing.T) {
 	ArchiveStoreInst().archTbl = &mockArchiveStore{}
 	ArchiveStoreInst().run()
 
-	fmt.Printf("len arch records %d\n", len(ArchiveStoreInst().archTbl.(*mockArchiveStore).records))
+	t.Logf("len arch records %d", len(ArchiveStoreInst().archTbl.(*mockArchiveStore).records))
 	require.Equal(t, 2, len(ArchiveStoreInst().archTbl.(*mockArchiveStore).records))
 
 	err = ArchiveStoreInst().registerArchiveStore(srcTbl2.Name(), srcTbl2)
@@ -149,7 +152,7 @@ func TestArchiveStore(t *testing.T) {
 
 	ArchiveStoreInst().run()
 
-	fmt.Printf("len arch records %d\n", len(ArchiveStoreInst().archTbl.(*mockArchiveStore).records))
+	t.Logf("len arch records %d", len(ArchiveStoreInst().archTbl.(*mockArchiveStore).records))
 	require.Equal(t, 3, len(ArchiveStoreInst().archTbl.(*mockArchiveStore).records))
 }
 
@@ -158,5 +161,5 @@ func TestInDelayTime(t *testing.T) {
 }
 
 func TestDeleteBson(t *testing.T) {
-	fmt.Printf("%s\n", deleteBson())
+	t.Log(deleteBson())
 }

@@ -17,7 +17,6 @@ package worker
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"hash/crc32"
 	"testing"
 
@@ -26,7 +25,6 @@ import (
 	"github.com/cubefs/blobstore/common/codemode"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/util/errors"
-	"github.com/cubefs/blobstore/util/log"
 	"github.com/cubefs/blobstore/worker/base"
 )
 
@@ -99,8 +97,6 @@ func TestShardsBuf(t *testing.T) {
 	require.Equal(t, true, ok)
 }
 
-//-------------------------------------------------------------------------------------------
-
 func InitMockRepair(mode codemode.CodeMode) (*ShardRecover, []*ShardInfoSimple, *MockGetter, []proto.VunitLocation) {
 	bp := base.NewByteBufferPool(1024*10, 100)
 	replicas, mode := genMockVol(1, mode)
@@ -165,8 +161,7 @@ func testRepairByLocalStripe(t *testing.T, mode codemode.CodeMode) {
 			require.NoError(t, err)
 			expectCrc32 := getter.getShardCrc32(replicas[bad].Vuid, bid)
 			recoverShardCrc32 := crc32.ChecksumIEEE(shard)
-			fmt.Printf("bid %d vuid %d expectCrc32 %d recoverShardCrc32 %d\n", bid, replicas[bad].Vuid, expectCrc32, recoverShardCrc32)
-			require.Equal(t, expectCrc32, recoverShardCrc32)
+			require.Equal(t, expectCrc32, recoverShardCrc32, bid, replicas[bad].Vuid)
 		}
 	}
 	testCheckData(t, repair, getter, badi)
@@ -197,33 +192,18 @@ func testRepairByGlobalStripe(t *testing.T, mode codemode.CodeMode) {
 func TestRecoverLocalReplicaShards(t *testing.T) {
 	repair, bidInfos, getter, _ := InitMockRepair(codemode.EC6P10L2)
 	badi := []uint8{16}
-	getter.setFail(repair.replicas[0].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[1].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[2].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[3].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[4].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[5].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[6].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[7].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[8].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[9].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[10].Vuid, errors.New("fake error"))
+	for idx := range [11]struct{}{} {
+		getter.setFail(repair.replicas[idx].Vuid, errors.New("fake error"))
+	}
 
 	err := repair.recoverLocalReplicaShards(context.Background(), badi, GetBids(bidInfos))
 	require.Error(t, err)
 
 	repair, bidInfos, getter, _ = InitMockRepair(codemode.EC6P10L2)
 	badi = []uint8{16}
-	getter.setFail(repair.replicas[0].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[1].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[2].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[3].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[4].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[5].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[6].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[7].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[8].Vuid, errors.New("fake error"))
-	getter.setFail(repair.replicas[9].Vuid, errors.New("fake error"))
+	for idx := range [10]struct{}{} {
+		getter.setFail(repair.replicas[idx].Vuid, errors.New("fake error"))
+	}
 	err = repair.recoverLocalReplicaShards(context.Background(), badi, GetBids(bidInfos))
 	require.NoError(t, err)
 	testCheckData(t, repair, getter, badi)
@@ -393,15 +373,13 @@ func testCheckData(t *testing.T, repairer *ShardRecover, getter *MockGetter, bad
 		}
 		for _, repairIdx := range badi {
 			if !repairer.chunksShardsBuf[repairIdx].shardIsOk(bidInfo.Bid) {
-				fmt.Printf("not repair repairIdx %d bid %d\n", repairIdx, bidInfo.Bid)
-				require.NoError(t, errors.New("some bid has not been repaired"))
+				require.NoError(t, errors.New("some bid has not been repaired"), repairIdx, bidInfo.Bid)
 			}
 		}
 	}
 }
 
 func TestDownload(t *testing.T) {
-	log.SetOutputLevel(0)
 	ctx := context.Background()
 	repair, _, getter, replicas := InitMockRepair(codemode.EC6P6)
 	repairBids := []proto.BlobID{1, 2, 4, 5, 6, 7}
