@@ -259,7 +259,6 @@ func (cm *metafile) Scan(ctx context.Context, startBid proto.BlobID, limit int,
 	fn func(bid proto.BlobID, sm *core.ShardMeta) error) (err error,
 ) {
 	span := trace.SpanFromContextSafe(ctx)
-
 	iter := cm.db.NewIterator(ctx, func(op *rdb.Op) {
 		op.Ro = rdb.NewReadOptions()
 		// set fill cache false
@@ -290,6 +289,9 @@ func (cm *metafile) Scan(ctx context.Context, startBid proto.BlobID, limit int,
 	}
 
 	for ; iter.ValidForPrefix(prefix) && limit > 0; iter.Next() {
+		if iter.Err() != nil {
+			return iter.Err()
+		}
 		k, v := iter.Key(), iter.Value()
 		key, value := k.Data(), v.Data()
 
