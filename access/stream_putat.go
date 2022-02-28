@@ -51,14 +51,12 @@ func (h *Handler) PutAt(ctx context.Context, rc io.Reader,
 	readSize := int(size)
 	st := time.Now()
 	buffer, err := ec.NewBuffer(readSize, volume.CodeMode.Tactic(), h.memPool)
-	if dur := time.Since(st); dur > 5*time.Millisecond {
-		span.Debug("new ec buffer", dur)
-	}
 	if err != nil {
 		return err
 	}
 
 	putTime := new(timeReadWrite)
+	putTime.IncA(time.Since(st))
 	defer func() {
 		buffer.Release()
 		span.AppendRPCTrackLog([]string{putTime.String()})

@@ -21,8 +21,13 @@ import (
 )
 
 type timeReadWrite struct {
+	a int64 // alloc buffer
 	r int64 // PUT: read from client,  GET: read from blobnode
 	w int64 // PUT: write to blobnode, GET: write to client
+}
+
+func (t *timeReadWrite) IncA(dur time.Duration) {
+	atomic.AddInt64(&t.a, int64(dur))
 }
 
 func (t *timeReadWrite) IncR(dur time.Duration) {
@@ -33,8 +38,10 @@ func (t *timeReadWrite) IncW(dur time.Duration) {
 	atomic.AddInt64(&t.w, int64(dur))
 }
 
+// String within milliseconds
 func (t *timeReadWrite) String() string {
-	r := atomic.LoadInt64(&t.r)
-	w := atomic.LoadInt64(&t.w)
-	return fmt.Sprintf("r_%d_w_%d", r/1e6, w/1e6)
+	a := atomic.LoadInt64(&t.a) / 1e6
+	r := atomic.LoadInt64(&t.r) / 1e6
+	w := atomic.LoadInt64(&t.w) / 1e6
+	return fmt.Sprintf("a_%d_r_%d_w_%d", a, r, w)
 }

@@ -190,11 +190,13 @@ func (h *Handler) Get(ctx context.Context, w io.Writer, location access.Location
 					sizes, _ := ec.GetBufferSizes(int(blob.BlobSize), tactic)
 					shardSize := sizes.ShardSize
 
+					st := time.Now()
 					shards := make([][]byte, tactic.N+tactic.M)
 					for ii := range shards {
 						buf, _ := h.memPool.Alloc(shardSize)
 						shards[ii] = buf
 					}
+					getTime.IncA(time.Since(st))
 
 					err = h.readOneBlob(ctx, getTime, serviceController, clusterID,
 						blobVolume.Vid, codeMode, blob, sortedVuids, shards)

@@ -116,9 +116,7 @@ func (h *Handler) Put(ctx context.Context, rc io.Reader, size int64,
 		var err error
 		st := time.Now()
 		buffer, err = ec.NewBuffer(bsize, tactic, h.memPool)
-		if dur := time.Since(st); dur > 5*time.Millisecond {
-			span.Debug("new ec buffer", dur)
-		}
+		putTime.IncA(time.Since(st))
 		if err != nil {
 			return nil, err
 		}

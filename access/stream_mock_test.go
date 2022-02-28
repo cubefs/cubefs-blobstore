@@ -509,7 +509,7 @@ func newMockMsgSender() mqproxy.MsgSender {
 
 func init() {
 	rand.Seed(int64(time.Now().Nanosecond()))
-	log.SetOutputLevel(log.Lerror)
+	log.SetOutputLevel(log.Lfatal)
 
 	hystrix.ConfigureCommand(rwCommand, hystrix.CommandConfig{
 		Timeout:               9000,
