@@ -65,8 +65,8 @@ func TestService_CreateVolume(t *testing.T) {
 	testServiceCfg.CodeModePolicies = append(testServiceCfg.CodeModePolicies,
 		codemode.Policy{ModeName: codemode.EC4P4L2.Name(), Enable: true})
 	testService := initServiceWithData()
-	clear(testService)
 	testService.Close()
+	clear(testService)
 
 	// set EC4P4L2 enable=false
 	for i := range testServiceCfg.CodeModePolicies {
