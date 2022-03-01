@@ -175,9 +175,9 @@ type DeleteMgr struct {
 	failConsumer   *deleteTopicConsumer
 
 	delSuccessCounter      prometheus.Counter
-	delSuccessCounterByMin *counter.CounterByMin
+	delSuccessCounterByMin counter.Counter
 	delFailCounter         prometheus.Counter
-	delFailCounterByMin    *counter.CounterByMin
+	delFailCounterByMin    counter.Counter
 	errStatsDistribution   *base.ErrorStats
 }
 
@@ -231,12 +231,10 @@ func NewDeleteMgr(
 	tp := taskpool.New(cfg.TaskPoolSize, cfg.TaskPoolSize)
 
 	mgr := &DeleteMgr{
-		taskSwitch:             taskSwitch,
-		delSuccessCounter:      base.NewCounter(cfg.ClusterID, "delete", base.KindSuccess),
-		delSuccessCounterByMin: &counter.CounterByMin{},
-		delFailCounter:         base.NewCounter(cfg.ClusterID, "delete", base.KindFailed),
-		delFailCounterByMin:    &counter.CounterByMin{},
-		errStatsDistribution:   base.NewErrorStats(),
+		taskSwitch:           taskSwitch,
+		delSuccessCounter:    base.NewCounter(cfg.ClusterID, "delete", base.KindSuccess),
+		delFailCounter:       base.NewCounter(cfg.ClusterID, "delete", base.KindFailed),
+		errStatsDistribution: base.NewErrorStats(),
 	}
 
 	normalTopicConsumer := &deleteTopicConsumer{
@@ -326,9 +324,9 @@ type deleteTopicConsumer struct {
 
 	// stats
 	delSuccessCounter      prometheus.Counter
-	delSuccessCounterByMin *counter.CounterByMin
+	delSuccessCounterByMin counter.Counter
 	delFailCounter         prometheus.Counter
-	delFailCounterByMin    *counter.CounterByMin
+	delFailCounterByMin    counter.Counter
 	errStatsDistribution   *base.ErrorStats
 
 	// delete log

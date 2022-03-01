@@ -15,59 +15,57 @@
 package counter
 
 import (
-	"sync"
+	"sync/atomic"
 
 	"github.com/benbjohnson/clock"
 )
 
 const (
-	Interval = 60
-	SLOT     = 20
+	// SLOT counter resulting stored.
+	SLOT int64 = 20
+
+	// interval default is one minute.
+	interval int64 = 60
 )
 
-var timeClock = clock.New()
+// time clock just for testing mock.
+var time = clock.New()
 
-type minCounter struct {
-	count       int
-	interverIdx int64
+// Counter resulting count in default interval period.
+// It is thread safe.
+type Counter struct {
+	counts     [SLOT]int64
+	timestamps [SLOT]int64
 }
 
-type CounterByMin struct {
-	mu     sync.Mutex
-	counts [SLOT]minCounter
+// Add counts once in now.
+func (c *Counter) Add() {
+	c.AddN(1)
 }
 
-func (self *CounterByMin) Add() {
-	self.AddEx(1)
-}
+// AddN adds n in now.
+func (c *Counter) AddN(n int) {
+	now := time.Now().Unix() / interval
+	index := now % SLOT
 
-func (self *CounterByMin) AddEx(n int) {
-	nowInterval := timeClock.Now().Unix() / Interval
-	idx := nowInterval % SLOT
-	self.mu.Lock()
-	defer self.mu.Unlock()
-	if self.counts[idx].interverIdx == nowInterval {
-		self.counts[idx].count += n
+	if ts := atomic.LoadInt64(&c.timestamps[index]); ts == now {
+		atomic.AddInt64(&c.counts[index], int64(n))
 	} else {
-		self.counts[idx].count = n
-		self.counts[idx].interverIdx = nowInterval
+		atomic.StoreInt64(&c.counts[index], int64(n))
+		atomic.StoreInt64(&c.timestamps[index], now)
 	}
 }
 
-func (self *CounterByMin) Show() (count [SLOT]int) {
-	nowInterval := timeClock.Now().Unix() / Interval
-	idx := nowInterval % SLOT
-	self.mu.Lock()
-	defer self.mu.Unlock()
-	for i := int64(0); i < SLOT; i++ {
-		index := idx + 1 + i
-		if index >= SLOT {
-			index -= SLOT
-		}
-		ts := nowInterval - SLOT + 1 + i
-		count[i] = 0
-		if ts == self.counts[index].interverIdx {
-			count[i] = self.counts[index].count
+// Show returns result from oldest to newest.
+func (c *Counter) Show() (counts [SLOT]int) {
+	now := time.Now().Unix() / interval
+	index := now % SLOT
+
+	validTs := now - SLOT
+	for ii := int64(0); ii < SLOT; ii++ {
+		idx := (index + 1 + ii) % SLOT
+		if ts := atomic.LoadInt64(&c.timestamps[idx]); ts > validTs {
+			counts[ii] = int(atomic.LoadInt64(&c.counts[idx]))
 		}
 	}
 	return

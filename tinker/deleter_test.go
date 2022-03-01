@@ -26,7 +26,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cubefs/blobstore/common/counter"
 	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/kafka"
 	"github.com/cubefs/blobstore/common/proto"
@@ -75,12 +74,10 @@ func newDeleteTopicConsumer(t *testing.T) *deleteTopicConsumer {
 		blobnodeCli:       mockBlobnode,
 		failMsgSender:     mockProducer,
 
-		delSuccessCounter:      base.NewCounter(1, "delete", base.KindSuccess),
-		delSuccessCounterByMin: &counter.CounterByMin{},
-		delFailCounter:         base.NewCounter(1, "delete", base.KindFailed),
-		delFailCounterByMin:    &counter.CounterByMin{},
-		errStatsDistribution:   base.NewErrorStats(),
-		delLogger:              mockDelLogger,
+		delSuccessCounter:    base.NewCounter(1, "delete", base.KindSuccess),
+		delFailCounter:       base.NewCounter(1, "delete", base.KindFailed),
+		errStatsDistribution: base.NewErrorStats(),
+		delLogger:            mockDelLogger,
 	}
 }
 

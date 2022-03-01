@@ -22,8 +22,8 @@ import (
 
 // WorkerStats worker stats
 type WorkerStats struct {
-	cancelCount  counter.CounterByMin
-	reclaimCount counter.CounterByMin
+	cancelCount  counter.Counter
+	reclaimCount counter.Counter
 }
 
 // AddCancel add cancel statistics

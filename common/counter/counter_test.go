@@ -15,49 +15,95 @@
 package counter
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestCounterByMin(t *testing.T) {
-	mtime := clock.NewMock()
-	mtime.Add(1483950782 * 1e9)
-	timeClock = mtime
-	c := new(CounterByMin)
+const second clock.Duration = 1e9
 
-	expected := [SLOT]int{}
-	count := c.Show()
-	assert.Equal(t, expected, count)
+var mockTime *clock.Mock
+
+func init() {
+	mockTime = clock.NewMock()
+	mockTime.Add(1483950782 * second)
+	time = mockTime
+}
+
+func TestCounterBase(t *testing.T) {
+	var c Counter
+	var exp [SLOT]int
+	require.Equal(t, exp, c.Show())
+
 	c.Add()
-	expected[SLOT-1] = 1
-	count = c.Show()
-	assert.Equal(t, expected, count)
+	exp[SLOT-1] = 1
+	require.Equal(t, exp, c.Show())
 
-	for i := 0; i < 3; i++ {
-		mtime.Add(60e9)
-		expected = [SLOT]int{}
-		expected[SLOT-2] = 1
-		expected[SLOT-1] = 0
-		count = c.Show()
-		assert.Equal(t, expected, count)
-		c.Add()
-		c.Add()
-		expected[SLOT-2] = 1
-		expected[SLOT-1] = 2
-		count = c.Show()
-		assert.Equal(t, expected, count)
+	for ii := int64(0); ii < SLOT; ii++ {
+		mockTime.Add(clock.Duration(interval) * second)
+		c.AddN(int(ii))
+		copy(exp[:], exp[1:])
+		exp[SLOT-1] = int(ii)
+		require.Equal(t, exp, c.Show())
+	}
 
-		mtime.Add((SLOT - 1) * 60e9)
-		expected = [SLOT]int{}
-		expected[0] = 2
-		count = c.Show()
-		assert.Equal(t, expected, count)
+	for range [10]struct{}{} {
+		c := &Counter{}
 		c.Add()
-		expected[0] = 2
-		expected[SLOT-1] = 1
-		count = c.Show()
-		assert.Equal(t, expected, count)
+		mockTime.Add(clock.Duration(interval) * second)
+		exp := [SLOT]int{}
+		exp[SLOT-2] = 1
+		require.Equal(t, exp, c.Show())
+
+		c.Add()
+		c.Add()
+		exp[SLOT-1] = 2
+		require.Equal(t, exp, c.Show())
+
+		mockTime.Add(clock.Duration(SLOT-1) * clock.Duration(interval) * second)
+		exp = [SLOT]int{}
+		exp[0] = 2
+		require.Equal(t, exp, c.Show())
+
+		c.Add()
+		exp[0] = 2
+		exp[SLOT-1] = 1
+		require.Equal(t, exp, c.Show())
+	}
+}
+
+func TestCounterSafe(t *testing.T) {
+	var c Counter
+	var wg sync.WaitGroup
+	wg.Add(1000)
+	for idx := range [1000]struct{}{} {
+		go func(ii int) {
+			mockTime.Add(clock.Duration(ii) * second)
+			c.AddN(ii)
+			if ii%3 == 0 {
+				c.Show()
+			}
+			wg.Done()
+		}(idx)
+	}
+	wg.Wait()
+}
+
+func BenchmarkCounterAdd(b *testing.B) {
+	var c Counter
+	for ii := 0; ii < b.N; ii++ {
+		c.Add()
+	}
+}
+
+func BenchmarkCounterShow(b *testing.B) {
+	var c Counter
+	c.AddN(100)
+	mockTime.Add(100 * second)
+	b.ResetTimer()
+	for ii := 0; ii < b.N; ii++ {
+		c.Show()
 	}
 }

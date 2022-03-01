@@ -180,8 +180,8 @@ type InspectMgr struct {
 	repairShardSender IRepairShardSender
 	sendDeduplicator  *badShardDeduplicator
 
-	completeTaskCounter counter.CounterByMin
-	timeoutCounter      counter.CounterByMin
+	completeTaskCounter counter.Counter
+	timeoutCounter      counter.Counter
 
 	cfg *InspectMgrCfg
 }

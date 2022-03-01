@@ -95,9 +95,9 @@ type ShardRepairMgr struct {
 	orphanShardTable db.IOrphanShardTable
 
 	repairSuccessCounter    prometheus.Counter
-	repairSuccessCounterMin counter.CounterByMin
+	repairSuccessCounterMin counter.Counter
 	repairFailedCounter     prometheus.Counter
-	repairFailedCounterMin  counter.CounterByMin
+	repairFailedCounterMin  counter.Counter
 	errStatsDistribution    *base.ErrorStats
 
 	group singleflight.Group

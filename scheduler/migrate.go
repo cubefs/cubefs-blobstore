@@ -124,7 +124,7 @@ type MigrateMgr struct {
 	workQueue    *base.WorkerTaskQueue // store prepared task
 	finishQueue  *base.TaskQueue       // store completed task
 
-	finishTaskCounter counter.CounterByMin
+	finishTaskCounter counter.Counter
 
 	*MigrateConfig
 

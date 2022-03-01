@@ -93,8 +93,8 @@ type TaskRunDetailInfo struct {
 type TaskStatsMgr struct {
 	mu                  sync.Mutex
 	TaskRunInfos        map[string]TaskRunDetailInfo
-	dataSizeByteCounter counter.CounterByMin
-	shardCntCounter     counter.CounterByMin
+	dataSizeByteCounter counter.Counter
+	shardCntCounter     counter.Counter
 
 	dataSizeProCounter prometheus.Counter
 	shardCntProCounter prometheus.Counter
@@ -251,8 +251,8 @@ func (statsMgr *TaskStatsMgr) ReportWorkerTaskStats(
 	}
 
 	statsMgr.TaskRunInfos[taskID] = taskRunInfo
-	statsMgr.dataSizeByteCounter.AddEx(increaseDataSize)
-	statsMgr.shardCntCounter.AddEx(increaseShardCnt)
+	statsMgr.dataSizeByteCounter.AddN(increaseDataSize)
+	statsMgr.shardCntCounter.AddN(increaseShardCnt)
 
 	statsMgr.dataSizeProCounter.Add(float64(increaseDataSize))
 	statsMgr.shardCntProCounter.Add(float64(increaseShardCnt))

@@ -76,7 +76,7 @@ type RepairMgr struct {
 	taskSwitch *taskswitch.TaskSwitch
 
 	// for stats
-	finishTaskCounter counter.CounterByMin
+	finishTaskCounter counter.Counter
 	taskStatsMgr      *base.TaskStatsMgr
 
 	hasRevised bool
