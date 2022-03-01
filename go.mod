@@ -8,9 +8,9 @@ require (
 	github.com/Shopify/sarama v1.22.1
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/alicebob/miniredis/v2 v2.16.1
+	github.com/benbjohnson/clock v1.3.0
 	github.com/desertbit/grumble v1.1.1
 	github.com/dustin/go-humanize v1.0.0
-	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
 	github.com/fatih/color v1.13.0
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/go-redis/redis/v8 v8.11.4

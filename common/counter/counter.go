@@ -17,7 +17,7 @@ package counter
 import (
 	"sync"
 
-	"github.com/facebookgo/clock"
+	"github.com/benbjohnson/clock"
 )
 
 const (

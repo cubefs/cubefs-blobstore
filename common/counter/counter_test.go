@@ -17,7 +17,7 @@ package counter
 import (
 	"testing"
 
-	"github.com/facebookgo/clock"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 )
 

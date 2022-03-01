@@ -21,6 +21,9 @@ github.com/alicebob/miniredis/v2/metro
 github.com/alicebob/miniredis/v2/server
 # github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da
 github.com/armon/go-metrics
+# github.com/benbjohnson/clock v1.3.0
+## explicit
+github.com/benbjohnson/clock
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.2
@@ -49,9 +52,6 @@ github.com/eapache/go-resiliency/breaker
 github.com/eapache/go-xerial-snappy
 # github.com/eapache/queue v1.1.0
 github.com/eapache/queue
-# github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
-## explicit
-github.com/facebookgo/clock
 # github.com/facebookgo/ensure v0.0.0-20200202191622-63f1cf65ac4c
 ## explicit
 # github.com/facebookgo/stack v0.0.0-20160209184415-751773369052
