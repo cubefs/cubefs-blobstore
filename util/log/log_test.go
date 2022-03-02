@@ -165,6 +165,12 @@ func TestLoggerSetLevelHandler(t *testing.T) {
 		resp, err := http.Get(addr)
 		require.NoError(t, err)
 		resp.Body.Close()
+		require.Equal(t, 200, resp.StatusCode)
+	}
+	{
+		resp, err := http.Head(addr)
+		require.NoError(t, err)
+		resp.Body.Close()
 		require.Equal(t, 405, resp.StatusCode)
 	}
 	{

@@ -128,22 +128,26 @@ func init() {
 
 // ChangeDefaultLevelHandler returns http handler of default log level modify API
 func ChangeDefaultLevelHandler() (string, http.HandlerFunc) {
-	return "/log/level", func(resp http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
-			resp.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		if err := req.ParseForm(); err != nil {
-			resp.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		level, err := strconv.Atoi(req.FormValue("level"))
-		if err != nil || level < 0 || level >= int(maxLevel) {
-			resp.WriteHeader(http.StatusBadRequest)
-			return
-		}
+	return "/log/level", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			level := DefaultLogger.GetOutputLevel()
+			w.Write([]byte(fmt.Sprintf("{\"level\": \"%s\"}", levelToStrings[level])))
+		case http.MethodPost:
+			if err := r.ParseForm(); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			level, err := strconv.Atoi(r.FormValue("level"))
+			if err != nil || level < 0 || level >= int(maxLevel) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-		DefaultLogger.SetOutputLevel(Level(level))
+			DefaultLogger.SetOutputLevel(Level(level))
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	}
 }
 

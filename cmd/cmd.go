@@ -110,6 +110,7 @@ func Main(args []string) {
 		runtime.GOMAXPROCS(cfg.MaxProcs)
 	}
 	log.SetOutputLevel(cfg.LogConf.Level)
+	registerLogLevel()
 	if cfg.LogConf.Filename != "" {
 		log.SetOutput(newLogWriter(&cfg.LogConf))
 	}
@@ -202,9 +203,12 @@ func newMiddleWareHandler(authCfg auth.Config, r *rpc.Router, lh rpc.ProgressHan
 	return rpc.MiddlewareHandlerWith(r, hs...)
 }
 
-func init() {
+func registerLogLevel() {
 	logLevelPath, logLevelHandler := log.ChangeDefaultLevelHandler()
-	profile.HandleFunc(http.MethodPost, logLevelPath, func(ctx *rpc.Context) {
-		logLevelHandler.ServeHTTP(ctx.Writer, ctx.Request)
+	profile.HandleFunc(http.MethodPost, logLevelPath, func(c *rpc.Context) {
+		logLevelHandler.ServeHTTP(c.Writer, c.Request)
+	})
+	profile.HandleFunc(http.MethodGet, logLevelPath, func(c *rpc.Context) {
+		logLevelHandler.ServeHTTP(c.Writer, c.Request)
 	})
 }
