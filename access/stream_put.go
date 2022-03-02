@@ -372,11 +372,16 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 		received[st.index] = st
 	}
 
+	writeDone := make(chan struct{}, 1)
 	// write unaccomplished shard to repair queue
-	go func() {
+	go func(writeDone <-chan struct{}) {
 		for len(received) < len(volume.Units) {
 			st := <-statusCh
 			received[st.index] = st
+		}
+
+		if _, ok := <-writeDone; !ok {
+			return
 		}
 
 		badIdxes := make([]uint8, 0)
@@ -389,10 +394,11 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 		if len(badIdxes) > 0 {
 			h.sendRepairMsgBg(ctx, blob, badIdxes)
 		}
-	}()
+	}(writeDone)
 
 	// return if had quorum successful shards
 	if atomic.LoadUint32(&writtenNum) >= putQuorum {
+		writeDone <- struct{}{}
 		return
 	}
 
@@ -425,10 +431,12 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 		if allFine == tactic.AZCount-1 && allDown == 1 {
 			span.Warnf("tolerate-multi-az-write (az-fine:%d az-down:%d az-all:%d) of %s",
 				allFine, allDown, tactic.AZCount, blob.String())
+			writeDone <- struct{}{}
 			return
 		}
 	}
 
+	close(writeDone)
 	err = fmt.Errorf("quorum write failed (%d < %d) of %s", writtenNum, putQuorum, blob.String())
 	return
 }
