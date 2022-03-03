@@ -19,7 +19,7 @@ import (
 	"io"
 
 	api "github.com/cubefs/blobstore/api/blobnode"
-	"github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
@@ -111,7 +111,7 @@ func (c *BlobNodeClient) StatShard(ctx context.Context, location proto.VunitLoca
 
 	info, err := c.cli.StatShard(ctx, location.Host, &api.StatShardArgs{DiskID: location.DiskID, Vuid: location.Vuid, Bid: bid})
 	if err != nil {
-		if errCode := rpc.DetectStatusCode(err); errCode == errors.CodeBidNotFound {
+		if errCode := rpc.DetectStatusCode(err); errCode == errcode.CodeBidNotFound {
 			span.Debugf("StatShard not found and set flag ShardStatusNotExist: location[%+v], bid[%d]", location, bid)
 			var info2 ShardInfo
 			info2.Vuid = location.Vuid

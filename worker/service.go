@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	blobnodeapi "github.com/cubefs/blobstore/api/blobnode"
@@ -25,7 +26,7 @@ import (
 	workerapi "github.com/cubefs/blobstore/api/worker"
 	"github.com/cubefs/blobstore/cmd"
 	"github.com/cubefs/blobstore/common/config"
-	comErr "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/recordlog"
 	"github.com/cubefs/blobstore/common/rpc"
@@ -136,6 +137,7 @@ type Service struct {
 
 	closeCh   chan struct{}
 	acquireCh chan struct{}
+	closeOnce *sync.Once
 
 	schedulerCli client.IScheduler
 	blobNodeCli  client.IBlobNode
@@ -225,7 +227,8 @@ func NewService(cfg *Config) (*Service, error) {
 
 		taskRenter: taskRenter,
 		acquireCh:  make(chan struct{}, 1),
-		closeCh:    make(chan struct{}, 1),
+		closeCh:    make(chan struct{}),
+		closeOnce:  &sync.Once{},
 		Config:     *cfg,
 	}
 
@@ -249,18 +252,19 @@ func NewHandler(service *Service) *rpc.Router {
 
 // HTTPShardRepair repair shard
 func (s *Service) HTTPShardRepair(c *rpc.Context) {
-	span := trace.SpanFromContextSafe(c.Request.Context())
-	ctx := trace.ContextWithSpan(c.Request.Context(), span)
-
 	args := new(workerapi.ShardRepairArgs)
 	if err := c.ParseArgs(args); err != nil {
 		c.RespondError(err)
 		return
 	}
 
+	span := trace.SpanFromContextSafe(c.Request.Context())
+	ctx := trace.ContextWithSpan(c.Request.Context(), span)
+
 	err := s.shardRepairLimit.Acquire()
 	if err != nil {
-		c.RespondError(err)
+		span.Errorf("the shard repair request is too much: err[%+v]", err)
+		c.RespondError(errcode.ErrRequestLimited)
 		return
 	}
 	defer s.shardRepairLimit.Release()
@@ -298,6 +302,8 @@ func (s *Service) Run() {
 func (s *Service) loopAcquireTask() {
 	go func() {
 		ticker := time.NewTicker(time.Duration(s.AcquireIntervalMs) * time.Millisecond)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -327,7 +333,9 @@ func (s *Service) notifyAcquire() {
 
 // Close close service
 func (s *Service) Close() {
-	close(s.closeCh)
+	s.closeOnce.Do(func() {
+		close(s.closeCh)
+	})
 }
 
 func (s *Service) tryAcquireTask() {
@@ -360,7 +368,7 @@ func (s *Service) acquireTask() {
 	t, err := s.schedulerCli.AcquireTask(ctx, &schedulerapi.AcquireArgs{IDC: s.ServiceRegister.Idc})
 	if err != nil {
 		code := rpc.DetectStatusCode(err)
-		if code != comErr.CodeNotingTodo {
+		if code != errcode.CodeNotingTodo {
 			span.Errorf("acquire task failed: code[%d], err[%v]", code, err)
 		}
 		return
@@ -425,7 +433,7 @@ func (s *Service) acquireInspectTask() {
 	t, err := s.schedulerCli.AcquireInspectTask(ctx)
 	if err != nil {
 		code := rpc.DetectStatusCode(err)
-		if code != comErr.CodeNotingTodo {
+		if code != errcode.CodeNotingTodo {
 			span.Errorf("acquire inspect task failed: code[%d], err[%v]", code, err)
 		}
 		return

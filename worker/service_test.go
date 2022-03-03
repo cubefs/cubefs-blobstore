@@ -186,7 +186,8 @@ func newMockService() *Service {
 		Config:       Config{AcquireIntervalMs: 1},
 
 		acquireCh: make(chan struct{}, 1),
-		closeCh:   make(chan struct{}, 1),
+		closeCh:   make(chan struct{}),
+		closeOnce: &sync.Once{},
 
 		taskRunnerMgr: NewTaskRunnerMgr(0, 2, 2,
 			2, 2, scheduler, wf),

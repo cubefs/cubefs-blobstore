@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	api "github.com/cubefs/blobstore/api/scheduler"
-	comerrors "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
@@ -145,7 +145,7 @@ func ShouldReclaim(e *WorkError) bool {
 		return false
 	}
 
-	if errCode == comerrors.CodeOverload {
+	if errCode == errcode.CodeOverload {
 		return false
 	}
 

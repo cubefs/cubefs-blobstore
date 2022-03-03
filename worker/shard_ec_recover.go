@@ -24,7 +24,7 @@ import (
 	"unsafe"
 
 	"github.com/cubefs/blobstore/common/codemode"
-	comerrors "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
@@ -901,16 +901,11 @@ func VunitIdxs(replicaLocations []proto.VunitLocation) []uint8 {
 
 // AllShardsCanNotDownload judge whether all shards can  download or not accord by download error
 func AllShardsCanNotDownload(shardDownloadFail error) bool {
-	errCode := rpc.DetectStatusCode(shardDownloadFail)
-	if errCode == comerrors.CodeShardMarkDeleted {
+	code := rpc.DetectStatusCode(shardDownloadFail)
+	switch code {
+	case errcode.CodeShardMarkDeleted, errcode.CodeBidNotFound, errcode.CodeShardSizeTooLarge:
 		return false
+	default:
+		return true
 	}
-	if errCode == comerrors.CodeBidNotFound {
-		return false
-	}
-	if errCode == comerrors.CodeShardSizeTooLarge {
-		return false
-	}
-
-	return true
 }

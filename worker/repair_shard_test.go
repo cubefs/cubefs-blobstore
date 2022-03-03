@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cubefs/blobstore/common/codemode"
-	comErr "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/worker/base"
@@ -67,7 +67,7 @@ func getRepairShardsTest(ctx context.Context,
 		}
 
 		if shard.IsBad() {
-			return repairIdx, shardSize, comErr.ErrDestReplicaBad
+			return repairIdx, shardSize, errcode.ErrDestReplicaBad
 		}
 
 	}
@@ -114,7 +114,7 @@ func testGetRepairShards(t *testing.T, mode codemode.CodeMode) {
 	getter.setFail(replicas[0].Vuid, errors.New("fake error"))
 	_, _, err = getRepairShardsTest(context.Background(), repairer, replicas, mode, 1, badi)
 	require.Error(t, err)
-	require.EqualError(t, comErr.ErrDestReplicaBad, err.Error())
+	require.EqualError(t, errcode.ErrDestReplicaBad, err.Error())
 
 	getter2 := NewMockGetterWithBids(replicas, mode, bids, sizes)
 	repairer2 := NewShardRepairer(getter2, nil)
@@ -124,7 +124,7 @@ func testGetRepairShards(t *testing.T, mode codemode.CodeMode) {
 	}
 	_, _, err = getRepairShardsTest(context.Background(), repairer2, replicas, mode, 1, badi2)
 	require.Error(t, err)
-	require.EqualError(t, comErr.ErrShardMayBeLost, err.Error())
+	require.EqualError(t, errcode.ErrShardMayBeLost, err.Error())
 
 	getter3 := NewMockGetterWithBids(replicas, mode, bids, sizes)
 	repairer3 := NewShardRepairer(getter3, nil)
@@ -142,7 +142,7 @@ func testGetRepairShards(t *testing.T, mode codemode.CodeMode) {
 	}
 	_, _, err = getRepairShardsTest(context.Background(), repairer4, replicas, mode, 1, badi4)
 	require.Error(t, err)
-	require.EqualError(t, comErr.ErrShardMayBeLost, err.Error())
+	require.EqualError(t, errcode.ErrShardMayBeLost, err.Error())
 
 	for i := codeInfo.M + 1; i < codeInfo.M+codeInfo.N+codeInfo.L; i++ {
 		getter4.Delete(context.Background(), replicas[i].Vuid, 1)
@@ -236,7 +236,7 @@ func testShardRepair(t *testing.T, mode codemode.CodeMode) {
 
 	err = repairer.RepairShard(context.Background(), task)
 	require.Error(t, err)
-	require.EqualError(t, comErr.ErrShardMayBeLost, err.Error())
+	require.EqualError(t, errcode.ErrShardMayBeLost, err.Error())
 }
 
 func checkRepairShardResult(t *testing.T, getter *MockGetter, replicas []proto.VunitLocation, oldCrcs []uint32) {

@@ -25,6 +25,12 @@ const (
 	CodeIllegalTask       = 704
 	CodeNoInspect         = 705
 	CodeClusterIDNotMatch = 706
+	CodeRequestLimited    = 707
+)
+
+// common
+var (
+	ErrRequestLimited = Error(CodeRequestLimited)
 )
 
 // scheduler

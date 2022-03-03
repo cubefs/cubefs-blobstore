@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/cubefs/blobstore/common/codemode"
-	comErr "github.com/cubefs/blobstore/common/errors"
+	errcode "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/trace"
 	"github.com/cubefs/blobstore/worker/base"
@@ -88,7 +88,7 @@ func (repairer *ShardRepairer) RepairShard(ctx context.Context, task proto.Shard
 
 	if !task.IsValid() {
 		span.Errorf("shard repair task is illegal: task[%+v]", task)
-		return comErr.ErrIllegalTask
+		return errcode.ErrIllegalTask
 	}
 
 	shardInfos := repairer.listShardsInfo(ctx, task.Sources, task.Bid)
@@ -153,7 +153,7 @@ func (repairer *ShardRepairer) RepairShard(ctx context.Context, task proto.Shard
 	orphanedShard := repairer.checkOrphanShard(ctx, task.Sources, task.Bid, badIdxs)
 	if orphanedShard {
 		span.Warnf("blob is orphan shard: bid[%d], badIdxs[%+v]", task.Bid, badIdxs)
-		err = comErr.ErrOrphanShard
+		err = errcode.ErrOrphanShard
 	}
 	return err
 }
@@ -166,7 +166,7 @@ func hasRepaired(shardInfos []*ShardInfoEx, repairIdxs []int) (bool, error) {
 		}
 
 		if shard.IsBad() {
-			return false, comErr.ErrDestReplicaBad
+			return false, errcode.ErrDestReplicaBad
 		}
 		if shard.Normal() {
 			repairCnt++
@@ -219,7 +219,7 @@ func getRepairShards(
 	}
 	if !existStatus.CanRecover() {
 		span.Errorf("shard maybe lost: mode[%d], existStatus[%+v]", mode, existStatus)
-		return nil, 0, comErr.ErrShardMayBeLost
+		return nil, 0, errcode.ErrShardMayBeLost
 	}
 
 	// step 3:collect need repair shards

@@ -96,6 +96,7 @@ var errCodeMap = map[int]string{
 	CodeNoInspect:                    "no inspect mgr instance",
 	CodeClusterIDNotMatch:            "clusterId not match",
 	CodeRegisterServiceInvalidParams: "register service params is invalid",
+	CodeRequestLimited:               "request limited",
 
 	// allocator
 	CodeNoAvaliableVolume: "this codemode has no avaliable volume",
