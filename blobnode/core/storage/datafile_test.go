@@ -58,7 +58,7 @@ func TestNewChunkData(t *testing.T) {
 	_, err = NewChunkData(ctx, core.VuidMeta{}, "/tmp/mock/file/path", conf, false, nil)
 	require.Error(t, err)
 
-	// 场景：第一次创建 chunkdata 文件，会做格式化
+	// case: format data when first creating chunkdata
 	cd, err := NewChunkData(ctx, core.VuidMeta{}, chunkname, conf, true, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cd)
@@ -181,7 +181,6 @@ func TestChunkData_ConcurrencyWrite(t *testing.T) {
 
 	require.Equal(t, int32(cd.wOff), int32(4096))
 
-	// 并发 10
 	concurrency := 10
 	shards := make([]*core.Shard, 0)
 	sharddatas := make([][]byte, 0)
@@ -262,7 +261,6 @@ func TestChunkData_Delete(t *testing.T) {
 
 	require.Equal(t, int32(cd.wOff), int32(4096))
 
-	// 并发 10
 	concurrency := 5
 	shards := make([]*core.Shard, 0)
 	sharddatas := make([][]byte, 0)

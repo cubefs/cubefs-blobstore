@@ -47,7 +47,7 @@ func TestRecordReaderRead(t *testing.T) {
 		br:         bufio.NewReaderSize(f, defaultReadBufferedSize),
 		sr:         f,
 		filename:   f.Name(),
-		typeLenBuf: make([]byte, 8), // 8字节dataLen
+		typeLenBuf: make([]byte, 8), // 8 byte dataLen
 	}
 
 	_, _, err = rr.Read()

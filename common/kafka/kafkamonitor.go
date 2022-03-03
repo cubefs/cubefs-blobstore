@@ -179,7 +179,7 @@ func (monitor *KafkaMonitor) report() {
 		oldestOffset := monitor.oldestOffsetMap.getOffset(pid)
 		newestOffset := monitor.newestOffsetMap.getOffset(pid)
 		consumeOffset := monitor.consumeOffsetMap.getOffset(pid)
-		latency := newestOffset - consumeOffset - 1 //-1，原因newestOffset指向的是下一个待生产的消息offset
+		latency := newestOffset - consumeOffset - 1 //-1，because the newestOffset is the next message offset
 		if latency < 0 {
 			latency = 0
 		}

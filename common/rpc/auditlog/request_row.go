@@ -114,14 +114,14 @@ type RespHeader struct {
 	RsInfo            *RsInfo          `json:"rs-info"`
 	XRespCode         string           `json:"X-Resp-Code"` // return from dora
 	BillTag           string           `json:"billtag"`     // must be same with definition  in billtag.go
-	BatchDeletes      map[uint32]int64 `json:"batchDelete"` // s3计量使用 batch delete 计量
-	ApiName           string           `json:"api"`         // api name of this auditlog
+	BatchDeletes      map[uint32]int64 `json:"batchDelete"`
+	ApiName           string           `json:"api"` // api name of this auditlog
 }
 
 type RequestRow struct {
 	data []string
 
-	// 以下三个字段延迟加载，请使用get方法获得
+	// the following fields will be loaded lazily and use get request to obtain them
 	reqHeader  *ReqHeader
 	respHeader *RespHeader
 	rawQuery   *url.Values
@@ -473,7 +473,7 @@ func (a *RequestRow) XlogsTime(names []string) (msSpeedTotal uint64) {
 	return
 }
 
-// maxApiLevel控制返回的最大api层数(层数应大于等于2)，默认值为2，返回的api形如io.get
+// apiWithParams returns api information with maxApiLevel( default 2).
 func apiWithParams(service, method, path, host, params string, maxApiLevel int) (api string) {
 	if service == "" || method == "" {
 		return "unknown.unknown"
@@ -504,9 +504,8 @@ func apiWithParams(service, method, path, host, params string, maxApiLevel int) 
 	}
 
 	api = firstPath
-	// 处理api层数大于2的情况
 	if maxApiLevel > 2 {
-		level := 3 // 从第3层api开始
+		level := 3
 		index := firstPathIndex + 1
 		length := len(fields)
 		for level <= maxApiLevel && index < length {

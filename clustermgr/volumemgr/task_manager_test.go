@@ -74,7 +74,7 @@ func TestTaskManager(t *testing.T) {
 	}
 	task = newVolTask(3, base.VolumeTaskTypeUnlock, taskId, taskf)
 	mgr.AddTask(task)
-	<-ch // 确保任务已经执行过一次
+	<-ch // make sure the task has already been executed once
 	mgr.mu.Lock()
 	require.Equal(t, 1, len(mgr.taskMap)+len(mgr.schedMap))
 	mgr.mu.Unlock()

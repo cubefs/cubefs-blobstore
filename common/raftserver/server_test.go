@@ -241,7 +241,7 @@ func TestRaftServer(t *testing.T) {
 			rs = rss[i].(*raftServer)
 		}
 		for {
-			// 确保数据加载完成
+			// make sure the data has already been loaded
 			if err = rss[i].ReadIndex(context.TODO()); err == nil {
 				break
 			}

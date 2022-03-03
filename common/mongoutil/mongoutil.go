@@ -26,7 +26,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
-// Config 是 mongo 客户端配置。
+// Config for mongo client
 type Config struct {
 	URI          string              `json:"uri"`
 	TimeoutMs    int64               `json:"timeout_ms"`

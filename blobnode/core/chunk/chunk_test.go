@@ -143,7 +143,7 @@ func TestChunkStorage_ReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cs)
 
-	// 构造 shard 数据
+	// build shard data
 	shardData := []byte("test data")
 	shardSize := len(shardData)
 	dataCrc := crc32.NewIEEE()
@@ -265,7 +265,7 @@ func TestChunkStorage_ReadWriteInline(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cs)
 
-	// 构造 shard 数据
+	// build shard data
 	shardData := []byte("test")
 
 	bid := proto.BlobID(1024)

@@ -23,9 +23,7 @@ import (
 	"github.com/cubefs/blobstore/common/trace"
 )
 
-// 职责：否则周期性从CM同步任务开关状态
-// 负责各类任务的开关控制
-// 负责开关控制状态的持久化
+// task switch name
 const (
 	DiskRepairSwitchName  = "disk_repair"
 	BalanceSwitchName     = "balance"
@@ -36,9 +34,9 @@ const (
 )
 
 const (
-	GetSwitchStatusPeriodS = time.Duration(15 * time.Second)
-	SwitchOpen             = "Enable"
-	SwitchClose            = "Disable"
+	syncTaskStatusIntervalS = 15
+	SwitchOpen              = "Enable"
+	SwitchClose             = "Disable"
 )
 
 var (
@@ -118,7 +116,7 @@ func NewSwitchMgr(cmCli ConfigGetter) *SwitchMgr {
 func (sm *SwitchMgr) loopUpdate() {
 	for {
 		sm.update()
-		time.Sleep(GetSwitchStatusPeriodS)
+		time.Sleep(syncTaskStatusIntervalS * time.Second)
 	}
 }
 
@@ -171,11 +169,12 @@ func (sm *SwitchMgr) DelSwitch(switchName string) error {
 }
 
 func switchStatus(statusStr string) (open bool, err error) {
-	if statusStr == SwitchOpen {
+	switch statusStr {
+	case SwitchOpen:
 		return true, nil
-	}
-	if statusStr == SwitchClose {
+	case SwitchClose:
 		return false, nil
+	default:
+		return true, errors.New("illegal status str")
 	}
-	return true, errors.New("illegal status str")
 }
