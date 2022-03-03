@@ -84,7 +84,6 @@ type DiskStorage struct {
 	// status
 	status       proto.DiskStatus
 	isMountPoint bool
-	Readonly     bool
 	closed       bool
 
 	// chan
@@ -196,7 +195,6 @@ func (ds *DiskStorage) DiskInfo() (info bnapi.DiskInfo) {
 
 	// status
 	info.Status = ds.status
-	info.Readonly = ds.Readonly
 
 	info.CreateAt = time.Unix(0, ds.CreateAt)
 	info.LastUpdateAt = time.Unix(0, ds.LastUpdateAt)
@@ -209,13 +207,6 @@ func (ds *DiskStorage) Status() (status proto.DiskStatus) {
 	defer ds.Lock.RUnlock()
 
 	return ds.status
-}
-
-func (ds *DiskStorage) IsReadonly() bool {
-	ds.Lock.RLock()
-	defer ds.Lock.RUnlock()
-
-	return ds.Readonly
 }
 
 func (ds *DiskStorage) Stats() (stat core.DiskStats) {
@@ -506,7 +497,6 @@ func newDiskStorage(ctx context.Context, conf core.Config) (ds *DiskStorage, err
 		compactCh:        make(chan proto.Vuid),
 		ctx:              ctx,
 		status:           dm.Status,
-		Readonly:         dm.Readonly,
 		isMountPoint:     myos.IsMountPoint(conf.Path),
 		dataQos:          dataQos,
 		CreateAt:         dm.Ctime,
@@ -855,41 +845,6 @@ func (ds *DiskStorage) UpdateDiskStatus(ctx context.Context, status proto.DiskSt
 	ds.Lock.Lock()
 	ds.status = status
 	ds.Lock.Unlock()
-
-	return
-}
-
-func (ds *DiskStorage) UpdateDiskReadOnly(ctx context.Context, readonly bool) (err error) {
-	span := trace.SpanFromContextSafe(ctx)
-
-	ds.Lock.RLock()
-	curReadonly := ds.Readonly
-	ds.Lock.RUnlock()
-	if curReadonly == readonly {
-		span.Debugf("disk readOnly is same")
-		return
-	}
-
-	di, err := ds.SuperBlock.LoadDiskInfo(ctx)
-	if err != nil {
-		span.Errorf("load disk(%v) info failed: %v", ds.DiskID, err)
-		return
-	}
-
-	di.Readonly = readonly
-
-	err = ds.SuperBlock.UpsertDisk(ctx, ds.DiskID, di)
-	if err != nil {
-		span.Errorf("update disk(%v) persistence readonly failed: %v", ds.DiskID, err)
-		return err
-	}
-
-	// modify
-	ds.Lock.Lock()
-	ds.Readonly = readonly
-	ds.Lock.Unlock()
-
-	di.Mtime = time.Now().UnixNano()
 
 	return
 }

@@ -33,7 +33,6 @@ import (
 	bnapi "github.com/cubefs/blobstore/api/blobnode"
 	cmapi "github.com/cubefs/blobstore/api/clustermgr"
 	"github.com/cubefs/blobstore/blobnode/core"
-	"github.com/cubefs/blobstore/blobnode/core/disk"
 	"github.com/cubefs/blobstore/blobnode/db"
 	"github.com/cubefs/blobstore/common/kvstore"
 	"github.com/cubefs/blobstore/common/proto"
@@ -54,12 +53,8 @@ func TestHeartbeat(t *testing.T) {
 	diskID := proto.DiskID(101)
 
 	require.Equal(t, proto.DiskStatusNormal, service.Disks[diskID].Status())
-	require.Equal(t, false, service.Disks[diskID].(*disk.DiskStorageWrapper).Readonly)
 
 	service.heartbeatToClusterMgr()
-
-	// require.Equal(t, uint8(proto.DiskStatusReadonly), service.Disks[diskID].Status)
-	require.Equal(t, true, service.Disks[diskID].(*disk.DiskStorageWrapper).Readonly)
 }
 
 func TestHeartbeat2(t *testing.T) {

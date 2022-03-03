@@ -729,9 +729,6 @@ func (cs *chunk) AllowModify() (err error) {
 	if ds.Status() >= proto.DiskStatusBroken {
 		return bloberr.ErrDiskBroken
 	}
-	if ds.IsReadonly() {
-		return bloberr.ErrReadOnlyDisk
-	}
 
 	// check chunk status
 	cs.lock.RLock()

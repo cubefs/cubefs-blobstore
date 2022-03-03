@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bnapi "github.com/cubefs/blobstore/api/blobnode"
-	"github.com/cubefs/blobstore/blobnode/core/disk"
 	bloberr "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/util/limit/keycount"
@@ -205,16 +204,14 @@ func TestShardPutAndGet(t *testing.T) {
 
 	putShardArg.Body = bytes.NewReader(shardData)
 	service.Disks[diskID].SetStatus(proto.DiskStatusNormal)
-	service.Disks[diskID].(*disk.DiskStorageWrapper).Readonly = true
 	_, err = client.PutShard(ctx, host, putShardArg)
-	require.Error(t, err)
+	require.Nil(t, err)
 
 	ds := service.Disks[diskID]
 	cs, exist := ds.GetChunkStorage(vuid)
 	require.True(t, exist)
 
 	putShardArg.Body = bytes.NewReader(shardData)
-	ds.(*disk.DiskStorageWrapper).Readonly = false
 
 	putShardArg.Body = bytes.NewReader(shardData)
 	cs.SetStatus(bnapi.ChunkStatusRelease)

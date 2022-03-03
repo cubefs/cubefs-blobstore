@@ -45,7 +45,6 @@ type diskMock struct {
 	stats    core.DiskStats
 	ioQos    qos.Qos
 	status   proto.DiskStatus
-	readonly bool
 }
 
 func (mock *diskMock) ID() proto.DiskID {
@@ -54,10 +53,6 @@ func (mock *diskMock) ID() proto.DiskID {
 
 func (mock *diskMock) Status() (status proto.DiskStatus) {
 	return mock.status
-}
-
-func (mock *diskMock) IsReadonly() bool {
-	return mock.readonly
 }
 
 func (mock *diskMock) DiskInfo() (info bnapi.DiskInfo) {
@@ -97,10 +92,6 @@ func (mock *diskMock) LoadDiskInfo(ctx context.Context) (dm core.DiskMeta, err e
 }
 
 func (mock *diskMock) UpdateDiskStatus(ctx context.Context, status proto.DiskStatus) (err error) {
-	return
-}
-
-func (mock *diskMock) UpdateDiskReadOnly(ctx context.Context, readonly bool) (err error) {
 	return
 }
 

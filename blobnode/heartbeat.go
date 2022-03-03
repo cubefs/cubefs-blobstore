@@ -75,12 +75,9 @@ func (s *Service) heartbeatToClusterMgr() {
 func (s *Service) syncDiskStatus(ctx context.Context, diskInfosRet []*cmapi.DiskHeartbeatRet) {
 	span := trace.SpanFromContextSafe(ctx)
 
-	var err error
-
 	for _, diskInfo := range diskInfosRet {
 		diskId := diskInfo.DiskID
 		status := diskInfo.Status
-		readOnly := diskInfo.ReadOnly
 
 		s.lock.RLock()
 		ds, exist := s.Disks[diskId]
@@ -101,13 +98,5 @@ func (s *Service) syncDiskStatus(ctx context.Context, diskInfosRet []*cmapi.Disk
 			continue
 		}
 
-		if ds.IsReadonly() != readOnly {
-			// change readonly
-			err = ds.UpdateDiskReadOnly(ctx, readOnly)
-			if err != nil {
-				span.Errorf("change disk %v readonly to %v failed: %v", diskId, readOnly, err)
-			}
-			span.Infof("change disk %v readonly to %v success", diskId, readOnly)
-		}
 	}
 }

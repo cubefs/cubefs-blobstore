@@ -50,7 +50,6 @@ type DiskMeta struct {
 	Path       string           `json:"path"`
 	Status     proto.DiskStatus `json:"status"`
 	Registered bool             `json:"registered"`
-	Readonly   bool             `json:"readonly"`
 	Mtime      int64            `json:"mtime"`
 }
 
@@ -153,7 +152,6 @@ type ChunkAPI interface {
 type DiskAPI interface {
 	ID() proto.DiskID
 	Status() (status proto.DiskStatus)
-	IsReadonly() bool
 	DiskInfo() (info bnapi.DiskInfo)
 	Stats() (stat DiskStats)
 	GetChunkStorage(vuid proto.Vuid) (cs ChunkAPI, found bool)
@@ -164,7 +162,6 @@ type DiskAPI interface {
 	SetStatus(status proto.DiskStatus)
 	LoadDiskInfo(ctx context.Context) (dm DiskMeta, err error)
 	UpdateDiskStatus(ctx context.Context, status proto.DiskStatus) (err error)
-	UpdateDiskReadOnly(ctx context.Context, readonly bool) (err error)
 	CreateChunk(ctx context.Context, vuid proto.Vuid, chunksize int64) (cs ChunkAPI, err error)
 	ReleaseChunk(ctx context.Context, vuid proto.Vuid, force bool) (err error)
 	UpdateChunkStatus(ctx context.Context, vuid proto.Vuid, status bnapi.ChunkStatus) (err error)
