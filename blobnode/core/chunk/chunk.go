@@ -649,11 +649,12 @@ func (cs *chunk) ListShards(ctx context.Context, startBid proto.BlobID, cnt int,
 		}
 
 		infos = append(infos, &bnapi.ShardInfo{
-			Vuid: cs.vuid,
-			Bid:  bid,
-			Size: int64(shard.Size),
-			Crc:  shard.Crc,
-			Flag: shard.Flag,
+			Vuid:   cs.vuid,
+			Bid:    bid,
+			Size:   int64(shard.Size),
+			Crc:    shard.Crc,
+			Flag:   shard.Flag,
+			Inline: shard.Inline,
 		})
 
 		next = bid
