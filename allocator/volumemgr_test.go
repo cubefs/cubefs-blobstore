@@ -17,6 +17,7 @@ package allocator
 import (
 	"context"
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -201,6 +202,7 @@ func BenchmarkVolumeMgr_Alloc(b *testing.B) {
 		Fsize:    4 * 1024 * 1024,
 		BidCount: 2,
 		CodeMode: 2,
+		Excludes: []proto.Vid{4, 5},
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -209,6 +211,98 @@ func BenchmarkVolumeMgr_Alloc(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestPollingAlloc(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cmcli := MockClusterCli(ctrl)
+	ctx := context.Background()
+	bidMgr, _ := NewBidMgr(ctx, BlobConfig{BidAllocNums: 100000}, cmcli)
+	vm := volumeMgr{clusterMgr: cmcli, BidMgr: bidMgr}
+
+	vm.modeInfos = make(map[codemode.CodeMode]*ModeInfo)
+	modeVol1 := initModeVolumes()
+	modeInfo := &ModeInfo{
+		volumes: modeVol1, totalThreshold: 16 * 1024 * 1024 * 1024,
+		totalFree: 10 * 16 * 1024 * 1024 * 1024,
+	}
+	for i := 1; i <= 10; i++ {
+		volInfo := cm.AllocVolumeInfo{
+			VolumeInfo: cm.VolumeInfo{
+				VolumeInfoBase: cm.VolumeInfoBase{
+					Vid:  proto.Vid(i),
+					Free: 16 * 1024 * 1024 * 1024,
+				},
+			},
+			ExpireTime: 100,
+		}
+
+		modeInfo.volumes.Put(&volume{
+			AllocVolumeInfo: volInfo,
+		})
+	}
+
+	vm.modeInfos[codemode.CodeMode(2)] = modeInfo
+	args := &allocator.AllocVolsArgs{
+		Fsize:    1 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: nil,
+		Discards: nil,
+	}
+	vid, err := vm.allocVid(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, proto.Vid(2), vid)
+
+	vid, err = vm.allocVid(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, proto.Vid(3), vid)
+
+	args = &allocator.AllocVolsArgs{
+		Fsize:    1 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: []proto.Vid{3, 4},
+		Discards: nil,
+	}
+	vid, err = vm.allocVid(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, proto.Vid(5), vid)
+
+	args = &allocator.AllocVolsArgs{
+		Fsize:    1 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: []proto.Vid{1, 2},
+		Discards: []proto.Vid{3, 4, 5, 6},
+	}
+	vid, err = vm.allocVid(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, proto.Vid(9), vid)
+
+	args = &allocator.AllocVolsArgs{
+		Fsize:    1 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: nil,
+		Discards: nil,
+	}
+	vid, err = vm.allocVid(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, proto.Vid(10), vid)
+
+	args = &allocator.AllocVolsArgs{
+		Fsize:    1 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: nil,
+		Discards: []proto.Vid{7, 8, 9, 10},
+	}
+	vid, err = vm.allocVid(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, proto.Vid(1), vid)
 }
 
 func TestAllocVolumeRetry(t *testing.T) {
@@ -234,4 +328,74 @@ func TestAllocVolumeRetry(t *testing.T) {
 	require.Error(t, err)
 
 	require.Less(t, int64(80), du, "duration: ", du)
+}
+
+func TestGetAvaliableVols(t *testing.T) {
+	v := &volumeMgr{
+		BlobConfig: BlobConfig{},
+		VolConfig:  VolConfig{},
+		BidMgr:     nil,
+		clusterMgr: nil,
+		modeInfos:  make(map[codemode.CodeMode]*ModeInfo),
+		mu:         sync.RWMutex{},
+		allocChs:   nil,
+		allocFlag:  0,
+		closed:     nil,
+	}
+	modeVol1 := initModeVolumes()
+	modeInfo := &ModeInfo{
+		volumes: modeVol1, totalThreshold: 10 * 1024 * 1024 * 1024,
+		totalFree: 55 * 1024 * 1024 * 1024,
+	}
+	for i := 1; i <= 10; i++ {
+		volInfo := cm.AllocVolumeInfo{
+			VolumeInfo: cm.VolumeInfo{
+				VolumeInfoBase: cm.VolumeInfoBase{
+					Vid:      proto.Vid(i),
+					CodeMode: codemode.EC6P6,
+					Free:     uint64(i * 1024 * 1024 * 1024),
+				},
+			},
+			ExpireTime: 100,
+		}
+
+		modeInfo.volumes.Put(&volume{
+			AllocVolumeInfo: volInfo,
+		})
+	}
+	v.modeInfos[codemode.EC6P6] = modeInfo
+
+	args := &allocator.AllocVolsArgs{
+		Fsize:    5 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: nil,
+		Discards: nil,
+	}
+	ctx := context.Background()
+	vids, err := v.getAvailableVols(ctx, args)
+	require.NoError(t, err)
+	require.Equal(t, []proto.Vid{5, 6, 7, 8, 9, 10}, vids)
+
+	args2 := &allocator.AllocVolsArgs{
+		Fsize:    5 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: nil,
+		Discards: []proto.Vid{8, 9},
+	}
+	vids, err = v.getAvailableVols(ctx, args2)
+	require.NoError(t, err)
+	require.Equal(t, []proto.Vid{5, 6, 7, 10}, vids)
+
+	args3 := &allocator.AllocVolsArgs{
+		Fsize:    5 << 30,
+		CodeMode: codemode.EC6P6,
+		BidCount: 1,
+		Excludes: nil,
+		Discards: []proto.Vid{5, 6, 7, 8, 9, 10},
+	}
+	vids, err = v.getAvailableVols(ctx, args3)
+	require.Error(t, err)
+	require.Nil(t, vids)
 }
