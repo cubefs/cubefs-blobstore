@@ -291,7 +291,7 @@ func (h *Handler) writeToBlobnodes(ctx context.Context,
 
 				code := rpc.DetectStatusCode(err)
 				switch code {
-				case errcode.CodeDiskBroken, errcode.CodeDiskNotFound, errcode.CodeDiskReadOnly,
+				case errcode.CodeDiskBroken, errcode.CodeDiskNotFound,
 					errcode.CodeChunkNoSpace, errcode.CodeVUIDReadonly:
 					h.discardVidChan <- discardVid{
 						cid:      clusterID,

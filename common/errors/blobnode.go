@@ -22,7 +22,6 @@ const (
 	CodeOverload     = 604
 
 	CodeDiskNotFound  = 611
-	CodeDiskReadOnly  = 612
 	CodeDiskBroken    = 613
 	CodeInvalidDiskId = 614
 	CodeDiskNoSpace   = 615
@@ -55,7 +54,6 @@ var (
 	ErrOverload     = Error(CodeOverload)
 
 	ErrNoSuchDisk    = Error(CodeDiskNotFound)
-	ErrReadOnlyDisk  = Error(CodeDiskReadOnly)
 	ErrDiskBroken    = Error(CodeDiskBroken)
 	ErrDiskNoSpace   = Error(CodeDiskNoSpace)
 	ErrInvalidDiskId = Error(CodeInvalidDiskId)

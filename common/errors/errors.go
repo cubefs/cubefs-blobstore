@@ -110,7 +110,6 @@ var errCodeMap = map[int]string{
 	CodeOverload:     "blobnode: service is overload",
 
 	CodeDiskNotFound:  "disk not found",
-	CodeDiskReadOnly:  "disk is readonly",
 	CodeDiskBroken:    "disk is broken",
 	CodeInvalidDiskId: "disk id is invalid",
 	CodeDiskNoSpace:   "disk no space",
