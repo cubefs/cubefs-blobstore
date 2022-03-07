@@ -17,10 +17,11 @@ package controller_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,15 +30,19 @@ import (
 
 	"github.com/cubefs/blobstore/access/controller"
 	"github.com/cubefs/blobstore/api/clustermgr"
+	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/redis"
 	"github.com/cubefs/blobstore/common/rpc"
+	"github.com/cubefs/blobstore/util/log"
 )
 
 var (
 	hostAddr string
 	consulKV api.KVPairs = nil
 
-	cc, cc0, cc1, cc2, cc3 controller.ClusterController
+	stableCluster = &atomic.Value{}
+
+	cc, cc0, cc1, cc2, cc3, cc19 controller.ClusterController
 )
 
 func initCluster() {
@@ -78,10 +83,21 @@ func initCluster() {
 	}
 	data3, _ := json.Marshal(cluster3)
 
+	cluster9 := clustermgr.ClusterInfo{
+		Region:    region,
+		ClusterID: 9,
+		Capacity:  1 << 50,
+		Available: 1 << 40,
+		Readonly:  false,
+		Nodes:     []string{hostAddr, hostAddr},
+	}
+	data9, _ := json.Marshal(cluster9)
+
 	consulKV = api.KVPairs{
 		&api.KVPair{Key: "1", Value: data1},
 		&api.KVPair{Key: "2", Value: data2},
 		&api.KVPair{Key: "3", Value: data3},
+		&api.KVPair{Key: "9", Value: data9},
 		&api.KVPair{Key: "4", Value: data1},
 		&api.KVPair{Key: "5", Value: []byte("{invalid json")},
 		&api.KVPair{Key: "cannot-parse-key", Value: []byte("{}")},
@@ -92,11 +108,27 @@ func initCluster() {
 }
 
 func consul(w http.ResponseWriter, req *http.Request) {
+	val := stableCluster.Load()
+	if val != nil {
+		if b := val.([]byte); b != nil {
+			w.Write(b)
+			return
+		}
+	}
+
 	data, _ := json.Marshal(consulKV)
 	w.Write(data)
 }
 
 func serviceGet(w http.ResponseWriter, req *http.Request) {
+	val := stableCluster.Load()
+	if val != nil {
+		if b := val.([]byte); b != nil {
+			w.Write([]byte("{}"))
+			return
+		}
+	}
+
 	if rand.Int31()%2 == 0 {
 		w.Write([]byte("{cannot unmarshal"))
 	} else {
@@ -105,41 +137,63 @@ func serviceGet(w http.ResponseWriter, req *http.Request) {
 }
 
 func initCC() {
+	defer func() {
+		var data []byte
+		stableCluster.Store(data)
+	}()
+
 	count := 0
-	for cc == nil || cc0 == nil || cc1 == nil || cc2 == nil || cc3 == nil {
+	for cc == nil || cc0 == nil || cc1 == nil {
 		c := newCC()
 		if cc == nil {
 			cc = c
 		}
 
 		clusters := c.All()
-		if len(clusters) == 0 {
-			if cc0 == nil {
-				cc0 = c
-			}
-			continue
-		}
-
-		if len(clusters) == 1 {
+		switch len(clusters) {
+		case 0:
+			cc0 = c
+		case 1:
 			switch clusters[0].ClusterID {
 			case 1:
-				if cc1 == nil {
-					cc1 = c
-				}
+				cc1 = c
 			case 2:
-				if cc2 == nil {
-					cc2 = c
-				}
+				cc2 = c
 			case 3:
-				if cc3 == nil {
-					cc3 = c
-				}
+				cc3 = c
 			}
 		}
 
 		count++
 	}
-	fmt.Println("init clusters run:", count)
+	log.Debug("init clusters run:", count)
+
+	// init cluster 2
+	if cc2 == nil {
+		var clusters api.KVPairs
+		clusters = append(clusters, consulKV[1])
+		data, _ := json.Marshal(clusters)
+		stableCluster.Store(data)
+		cc2 = newCC()
+	}
+	// init cluster 3
+	if cc3 == nil {
+		var clusters api.KVPairs
+		clusters = append(clusters, consulKV[2])
+		data, _ := json.Marshal(clusters)
+		stableCluster.Store(data)
+		cc3 = newCC()
+	}
+
+	// init cluster 1 and 9
+	if cc19 == nil {
+		var clusters api.KVPairs
+		clusters = append(clusters, consulKV[0])
+		clusters = append(clusters, consulKV[3])
+		data, _ := json.Marshal(clusters)
+		stableCluster.Store(data)
+		cc19 = newCC()
+	}
 }
 
 func newCC() controller.ClusterController {
@@ -160,6 +214,12 @@ func newCC() controller.ClusterController {
 	}
 	conf := api.DefaultConfig()
 	conf.Address = hostAddr
+	conf.Transport = &http.Transport{
+		MaxIdleConns:    1000,
+		IdleConnTimeout: time.Minute,
+	}
+	conf.Transport.DialContext = (&net.Dialer{KeepAlive: time.Minute}).DialContext
+
 	client, _ := api.NewClient(conf)
 	cc, err := controller.NewClusterController(&cfg, client)
 	if err != nil {
@@ -173,8 +233,8 @@ func TestAccessClusterNew(t *testing.T) {
 }
 
 func TestAccessClusterAll(t *testing.T) {
-	for ii := 0; ii < 10; ii++ {
-		require.LessOrEqual(t, len(newCC().All()), 3)
+	for range [5]struct{}{} {
+		require.LessOrEqual(t, len(newCC().All()), 4)
 	}
 }
 
@@ -191,7 +251,7 @@ func TestAccessClusterChooseOne(t *testing.T) {
 		_, err = cc2.ChooseOne()
 		require.Error(t, err)
 
-		cc2.ChangeChooseAlg(controller.AlgRandom)
+		cc2.ChangeChooseAlg(controller.AlgRoundRobin)
 		_, err = cc2.ChooseOne()
 		require.Error(t, err)
 	}
@@ -199,17 +259,18 @@ func TestAccessClusterChooseOne(t *testing.T) {
 		cluster, err := cc1.ChooseOne()
 		require.NoError(t, err)
 		require.NotNil(t, cluster)
-		for ii := 0; ii < 100; ii++ {
-			clusterx, err := cc1.ChooseOne()
-			require.NoError(t, err)
-			require.Equal(t, cluster, clusterx)
-		}
 
-		cc1.ChangeChooseAlg(controller.AlgRandom)
-		for ii := 0; ii < 100; ii++ {
-			clusterx, err := cc1.ChooseOne()
-			require.NoError(t, err)
-			require.Equal(t, cluster, clusterx)
+		for _, alg := range []controller.AlgChoose{
+			controller.AlgAvailable,
+			controller.AlgRoundRobin,
+			controller.AlgRandom,
+		} {
+			cc1.ChangeChooseAlg(alg)
+			for range [100]struct{}{} {
+				clusterx, err := cc1.ChooseOne()
+				require.NoError(t, err)
+				require.Equal(t, cluster, clusterx)
+			}
 		}
 	}
 }
@@ -248,12 +309,33 @@ func TestAccessClusterChangeChooseAlg(t *testing.T) {
 	}{
 		{0, controller.ErrInvalidChooseAlg},
 		{controller.AlgAvailable, nil},
+		{controller.AlgRoundRobin, nil},
 		{controller.AlgRandom, nil},
 		{1024, controller.ErrInvalidChooseAlg},
 	}
-
 	for _, cs := range cases {
 		err := cc.ChangeChooseAlg(cs.alg)
 		require.Equal(t, err, cs.err)
+	}
+}
+
+func TestAccessClusterChooseBalance(t *testing.T) {
+	cc := cc19
+	for _, alg := range []controller.AlgChoose{
+		controller.AlgAvailable,
+		controller.AlgRoundRobin,
+		controller.AlgRandom,
+	} {
+		err := cc.ChangeChooseAlg(alg)
+		require.NoError(t, err)
+
+		m := make(map[proto.ClusterID]int, 2)
+		for range [10000]struct{}{} {
+			cluster, err := cc.ChooseOne()
+			require.NoError(t, err)
+			m[cluster.ClusterID]++
+		}
+
+		t.Logf("balance with algorithm %s: %+v", alg, m)
 	}
 }

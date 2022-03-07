@@ -45,6 +45,8 @@ const (
 	minAlg AlgChoose = iota
 	// AlgAvailable available capacity and some random alloc
 	AlgAvailable
+	// AlgRoundRobin alloc cluster round robin
+	AlgRoundRobin
 	// AlgRandom completely random alloc
 	AlgRandom
 	maxAlg
@@ -117,15 +119,15 @@ type clusterMap map[proto.ClusterID]*cluster
 type clusterQueue []*cmapi.ClusterInfo
 
 type clusterControllerImpl struct {
-	region           string
-	kvClient         *api.Client
-	allocAlg         uint32
-	totalAvailableTB int64
-	clusters         atomic.Value // all clusters
-	available        atomic.Value // available clusters
-	serviceMgrs      sync.Map
-	volumeGetters    sync.Map
-	roundRobinCount  uint64 // a count for round robin
+	region          string
+	kvClient        *api.Client
+	allocAlg        uint32
+	totalAvailable  int64        // available space of all clusters
+	clusters        atomic.Value // all clusters
+	available       atomic.Value // available clusters
+	serviceMgrs     sync.Map
+	volumeGetters   sync.Map
+	roundRobinCount uint64 // a count for round robin
 
 	config ClusterConfig
 }
@@ -139,8 +141,7 @@ func NewClusterController(cfg *ClusterConfig, kvClient *api.Client) (ClusterCont
 	}
 	atomic.StoreUint32(&controller.allocAlg, uint32(AlgAvailable))
 
-	err := controller.load()
-	if err != nil {
+	if err := controller.load(); err != nil {
 		return nil, errors.Base(err, "load cluster failed")
 	}
 
@@ -173,7 +174,7 @@ func (c *clusterControllerImpl) load() error {
 
 	allClusters := make(clusterMap)
 	available := make([]*cmapi.ClusterInfo, 0, len(pairs))
-	totalAvailableTB := int64(0)
+	totalAvailable := int64(0)
 	for _, pair := range pairs {
 		clusterInfo := &cmapi.ClusterInfo{}
 		err := json.Unmarshal(pair.Value, clusterInfo)
@@ -198,7 +199,7 @@ func (c *clusterControllerImpl) load() error {
 		allClusters[proto.ClusterID(clusterID)] = &cluster{clusterInfo: clusterInfo}
 		if !clusterInfo.Readonly && clusterInfo.Available > 0 {
 			available = append(available, clusterInfo)
-			totalAvailableTB += int64(clusterInfo.Available >> 40)
+			totalAvailable += clusterInfo.Available
 		} else {
 			span.Debug("readonly or no available cluster", clusterID)
 		}
@@ -226,6 +227,7 @@ func (c *clusterControllerImpl) load() error {
 		removeThisCluster := func() {
 			delete(allClusters, clusterID)
 			if !newCluster.Readonly && newCluster.Available > 0 {
+				totalAvailable -= newCluster.Available
 				for j := range available {
 					if available[j].ClusterID == clusterID {
 						available = append(available[:j], available[j+1:]...)
@@ -267,9 +269,10 @@ func (c *clusterControllerImpl) load() error {
 
 	c.clusters.Store(allClusters)
 	c.available.Store(clusterQueue(available))
-	atomic.StoreInt64(&c.totalAvailableTB, totalAvailableTB)
+	atomic.StoreInt64(&c.totalAvailable, totalAvailable)
 
-	span.Infof("loaded %d clusters, %d available, total %dTB", len(allClusters), len(available), totalAvailableTB)
+	span.Infof("loaded %d clusters, and %d available, total available space %.3fTB",
+		len(allClusters), len(available), float64(totalAvailable)/(1<<40))
 	return nil
 }
 
@@ -293,31 +296,37 @@ func (c *clusterControllerImpl) ChooseOne() (*cmapi.ClusterInfo, error) {
 
 	switch alg {
 	case AlgAvailable:
-		totalAvailableTB := atomic.LoadInt64(&c.totalAvailableTB)
-		if totalAvailableTB <= 0 {
-			return nil, fmt.Errorf("no available space %d", totalAvailableTB)
+		totalAvailable := atomic.LoadInt64(&c.totalAvailable)
+		if totalAvailable <= 0 {
+			return nil, fmt.Errorf("no available space %d", totalAvailable)
 		}
-		randValue := rand.Int63n(totalAvailableTB)
+		randValue := rand.Int63n(totalAvailable)
 		available := c.available.Load().(clusterQueue)
 		for _, cluster := range available {
-			if cluster.Available>>40 >= randValue {
+			if cluster.Available >= randValue {
 				return cluster, nil
 			}
-			randValue -= cluster.Available >> 40
+			randValue -= cluster.Available
 		}
-		return nil, fmt.Errorf("no available cluster by %s", alg.String())
+
+	case AlgRoundRobin:
+		available := c.available.Load().(clusterQueue)
+		if length := uint64(len(available)); length > 0 {
+			count := atomic.AddUint64(&c.roundRobinCount, 1)
+			return available[count%length], nil
+		}
 
 	case AlgRandom:
 		available := c.available.Load().(clusterQueue)
-		if len(available) > 0 {
-			count := atomic.AddUint64(&c.roundRobinCount, 1)
-			length := uint64(len(available))
-			return available[count%length], nil
+		if length := int64(len(available)); length > 0 {
+			return available[rand.Int63()%length], nil
 		}
-		return nil, fmt.Errorf("no available cluster by %s", alg.String())
+
+	default:
+		return nil, fmt.Errorf("not implemented algorithm %s(%d)", alg.String(), alg)
 	}
 
-	return nil, fmt.Errorf("not implemented algorithm %s(%d)", alg.String(), alg)
+	return nil, fmt.Errorf("no available cluster by %s", alg.String())
 }
 
 func (c *clusterControllerImpl) ChangeChooseAlg(alg AlgChoose) error {
