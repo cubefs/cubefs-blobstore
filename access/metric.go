@@ -30,10 +30,25 @@ var unhealthMetric = prometheus.NewCounterVec(
 	[]string{"cluster", "action", "module", "host", "reason"},
 )
 
+var downloadMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Namespace: "blobstore",
+		Subsystem: "access",
+		Name:      "download",
+		Help:      "download way on access",
+	},
+	[]string{"cluster", "way", "reason"},
+)
+
 func init() {
 	prometheus.MustRegister(unhealthMetric)
+	prometheus.MustRegister(downloadMetric)
 }
 
 func reportUnhealth(cid proto.ClusterID, action, module, host, reason string) {
 	unhealthMetric.WithLabelValues(cid.ToString(), action, module, host, reason).Inc()
+}
+
+func reportDownload(cid proto.ClusterID, way, reason string) {
+	downloadMetric.WithLabelValues(cid.ToString(), way, reason).Inc()
 }
