@@ -19,9 +19,9 @@ import (
 	"context"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 
 	"github.com/cubefs/blobstore/blobnode/core"
+	bloberr "github.com/cubefs/blobstore/common/errors"
 )
 
 var (
@@ -55,8 +55,13 @@ func (stg *tinyfileStorage) canInline(size uint32) bool {
 }
 
 func (stg *tinyfileStorage) writeToMemory(b *core.Shard) (body []byte, err error) {
-	body, err = ioutil.ReadAll(io.LimitReader(b.Body, int64(b.Size)))
+	body = make([]byte, b.Size)
+
+	_, err = io.ReadFull(io.LimitReader(b.Body, int64(b.Size)), body)
 	if err != nil {
+		if err == io.ErrUnexpectedEOF {
+			return nil, bloberr.ErrReaderError
+		}
 		return nil, err
 	}
 
