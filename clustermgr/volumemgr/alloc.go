@@ -17,6 +17,7 @@ package volumemgr
 import (
 	"container/list"
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/cubefs/blobstore/common/codemode"
@@ -24,11 +25,10 @@ import (
 	"github.com/cubefs/blobstore/common/trace"
 )
 
-const healthiestScore = 0
-
 const (
 	NoDiskLoadThreshold = int(^uint(0) >> 1)
 	MinimumDiskLoad     = 0
+	healthiestScore     = 0
 )
 
 type allocConfig struct {
@@ -97,6 +97,15 @@ func (i *idleVolumes) delete(vid proto.Vid) {
 	i.Unlock()
 }
 
+func (i *idleVolumes) get(vid proto.Vid) (vol *volume) {
+	i.RLock()
+	if item, ok := i.m[vid]; ok {
+		vol = item.element.Value.(*volume)
+	}
+	i.RUnlock()
+	return vol
+}
+
 func (i *idleVolumes) allocFromOptions(optionalVids []proto.Vid, count int) (succeed []proto.Vid) {
 	i.Lock()
 	defer i.Unlock()
@@ -130,6 +139,18 @@ type volumeAllocator struct {
 
 	allocConfig
 }
+
+type sortVid []vidLoad
+
+type vidLoad struct {
+	vid    proto.Vid
+	load   int
+	health int
+}
+
+func (v sortVid) Len() int           { return len(v) }
+func (v sortVid) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
+func (v sortVid) Less(i, j int) bool { return v[i].health > v[j].health || v[i].load < v[j].load }
 
 func newVolumeAllocator(cfg allocConfig) *volumeAllocator {
 	idles := make(map[codemode.CodeMode]*idleVolumes)
@@ -203,8 +224,13 @@ func (a *volumeAllocator) Insert(v *volume, mode codemode.CodeMode) {
 	a.idles[mode].addAllocatable(v)
 }
 
-// get pre alloc volume
-func (a *volumeAllocator) PreAlloc(mode codemode.CodeMode, count int) ([]proto.Vid, int) {
+// PreAlloc select volumes which can alloc
+// 1. when EnableDiskLoad=false, all volume will range by health, the more healthier volume will range in front of the optional head
+// 2. when EnableDiskLoad=true, if do not hash enough volumes to alloc ,
+//      1) first add disk's load and retry, each time add one until disk's load equal to diskLoadThreshold will set EnableDiskLoad=false
+//      2) second minus volume score and retry , each time minus one until volume's score equal to scoreThreshold
+func (a *volumeAllocator) PreAlloc(ctx context.Context, mode codemode.CodeMode, count int) ([]proto.Vid, int) {
+	span := trace.SpanFromContextSafe(ctx)
 	idleVolumes := a.idles[mode]
 	if idleVolumes == nil {
 		return nil, MinimumDiskLoad
@@ -224,11 +250,12 @@ func (a *volumeAllocator) PreAlloc(mode codemode.CodeMode, count int) ([]proto.V
 RETRY:
 	index := 0
 	var assignable []*volume
+	span.Debugf("prealloc volume length is %d,isEnableDiskLoad:%v", len(allIdles), isEnableDiskLoad)
 	for _, volume := range allIdles {
 		volume.lock.RLock()
 		if volume.canAlloc(a.freezeThreshold, scoreThreshold) && (!isEnableDiskLoad || !a.isOverload(volume.vUnits, diskLoadThreshold)) {
-			// if !isEnableDiskLoad || !a.isOverload(volume.vUnits, diskLoadThreshold) {
 			optionalVids = append(optionalVids, volume.vid)
+
 			// only insufficient free size or unhealthy volume move to temporary head,
 			// ignore over diskLoad volume
 		} else if !volume.canAlloc(a.freezeThreshold, allocatableScoreThreshold) && volume.canInsert() {
@@ -240,6 +267,10 @@ RETRY:
 		// go to the end, first retry with high disk load volume
 		// second  lower health score volume
 		if index == availableVolCount-1 {
+			span.Debugf("already selected vids:%v,enableDiskLoad:%v,diskLoadThreshold:%d", optionalVids, isEnableDiskLoad, diskLoadThreshold)
+			if len(optionalVids) >= 3*count || len(assignable) == 0 {
+				break
+			}
 			if isEnableDiskLoad && diskLoadThreshold < a.allocatableDiskLoadThreshold {
 				diskLoadThreshold += 1
 			} else if isEnableDiskLoad {
@@ -253,7 +284,9 @@ RETRY:
 		}
 		index++
 	}
-
+	if a.isEnableDiskLoad() {
+		optionalVids = a.sortVidByLoad(mode, optionalVids)
+	}
 	ret := idleVolumes.allocFromOptions(optionalVids, count)
 	return ret, diskLoadThreshold
 }
@@ -338,7 +371,7 @@ func (a *volumeAllocator) isOverload(vUnits []*volumeUnit, diskLoadThreshold int
 	defer a.actives.RUnlock()
 
 	for _, unit := range vUnits {
-		if a.actives.diskLoad[unit.vuInfo.DiskID] >= diskLoadThreshold {
+		if a.actives.diskLoad[unit.vuInfo.DiskID] > diskLoadThreshold {
 			return true
 		}
 	}
@@ -352,4 +385,40 @@ func (a *volumeAllocator) isEnableDiskLoad() bool {
 func (a *volumeAllocator) getShardNum(mode codemode.CodeMode) int {
 	modeConf := a.codeModes[mode]
 	return modeConf.tactic.N + modeConf.tactic.M + modeConf.tactic.L
+}
+
+func (a *volumeAllocator) sortVidByLoad(mode codemode.CodeMode, vids []proto.Vid) (ret []proto.Vid) {
+	if len(vids) <= 1 {
+		return vids
+	}
+
+	var arrVids sortVid
+	for _, vid := range vids {
+		volume := a.idles[mode].get(vid)
+		if volume != nil {
+			load := 0
+			volume.lock.RLock()
+			diskIDs := make([]proto.DiskID, 0, len(volume.vUnits))
+			for _, unit := range volume.vUnits {
+				diskIDs = append(diskIDs, unit.vuInfo.DiskID)
+			}
+			score := volume.volInfoBase.HealthScore
+			vid := volume.vid
+			volume.lock.RUnlock()
+
+			a.actives.RLock()
+			for _, diskID := range diskIDs {
+				load += a.actives.diskLoad[diskID]
+			}
+			a.actives.RUnlock()
+			arrVids = append(arrVids, vidLoad{vid, load, score})
+		}
+	}
+	sort.Sort(arrVids)
+	ret = make([]proto.Vid, 0, len(arrVids))
+	for _, arrVid := range arrVids {
+		ret = append(ret, arrVid.vid)
+	}
+
+	return ret
 }

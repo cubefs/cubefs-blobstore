@@ -60,7 +60,7 @@ var (
 		FlushIntervalS:               100,
 		VolumeSliceMapNum:            32,
 		MinAllocableVolumeCount:      0,
-		AllocatableDiskLoadThreshold: 2,
+		AllocatableDiskLoadThreshold: 15,
 		CodeModePolicies: []codemode.Policy{{
 			ModeName: codemode.EC15P12.Name(),
 			Enable:   true,
@@ -991,30 +991,59 @@ func TestVolumeMgr_PreAlloc(t *testing.T) {
 		lenVids     int
 		diskLoad    int
 	}{
-		// testCase1: healthScoreThreshold is -3,set healthScore>-3 will alloc
+		// first have 8 diskload=0 vid,alloc success
+		{
+			codemode:    1,
+			healthScore: 0,
+			count:       2,
+			lenVids:     2,
+			diskLoad:    0,
+		},
+		{
+			codemode:    1,
+			healthScore: 0,
+			count:       1,
+			lenVids:     1,
+			diskLoad:    0,
+		},
+		// prealloc's vid(diskload=0) num not match require,should add diskload
+		{
+			codemode:    1,
+			healthScore: 0,
+			count:       2,
+			lenVids:     2,
+			diskLoad:    mockVolumeMgr.AllocatableDiskLoadThreshold,
+		},
+		// first add diskLoad,then add healthScore
 		{
 			codemode:    1,
 			healthScore: -3,
-			count:       5,
-
-			lenVids:  5,
-			diskLoad: mockVolumeMgr.AllocatableDiskLoadThreshold,
+			count:       2,
+			lenVids:     2,
+			diskLoad:    mockVolumeMgr.AllocatableDiskLoadThreshold,
 		},
+		// all volume health not match,not add diskLoad
 		{
 			codemode:    1,
 			healthScore: -4,
 			count:       5,
-
-			lenVids:  0,
-			diskLoad: 1,
+			lenVids:     0,
+			diskLoad:    0,
 		},
 	}
 	for _, testCase := range testCases {
 		mockVolumeMgr.all.rangeVol(func(v *volume) error {
 			v.volInfoBase.HealthScore = testCase.healthScore
+			if v.volInfoBase.Status == proto.VolumeStatusIdle {
+				for i := range v.vUnits {
+					if v.vid%4 == 0 {
+						v.vUnits[i].vuInfo.DiskID = proto.DiskID(101 + i)
+					}
+				}
+			}
 			return nil
 		})
-		vids, diskLoad := mockVolumeMgr.allocator.PreAlloc(testCase.codemode, testCase.count)
+		vids, diskLoad := mockVolumeMgr.allocator.PreAlloc(context.Background(), testCase.codemode, testCase.count)
 		assert.Equal(t, len(vids), testCase.lenVids)
 		assert.Equal(t, diskLoad, testCase.diskLoad)
 	}

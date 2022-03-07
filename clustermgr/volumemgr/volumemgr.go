@@ -63,7 +63,6 @@ var (
 var (
 	ErrVolumeNotExist           = apierrors.ErrVolumeNotExist
 	ErrVolumeUnitNotExist       = apierrors.ErrVolumeUnitNotExist
-	ErrInvalidToken             = errors.New("retain token is invalid")
 	ErrOldVuidNotMatch          = apierrors.ErrOldVuidNotMatch
 	ErrNewVuidNotMatch          = apierrors.ErrNewVuidNotMatch
 	ErrNewDiskIDNotMatch        = apierrors.ErrNewDiskIDNotMatch
@@ -71,6 +70,7 @@ var (
 	ErrVolumeNotAlloc           = apierrors.ErrRetainVolumeNotAlloc
 	ErrCreateVolumeAlreadyExist = errors.New("create volume already exist")
 	ErrInvalidVolume            = errors.New(" volume is invalid ")
+	ErrInvalidToken             = errors.New("retain token is invalid")
 	ErrRepeatUpdateUnit         = errors.New("repeat update volume unit")
 )
 
@@ -287,7 +287,7 @@ func (v *VolumeMgr) AllocVolume(ctx context.Context, mode codemode.CodeMode, cou
 	v.pendingEntries.Store(pendingKey, nil)
 	defer v.pendingEntries.Delete(pendingKey)
 
-	preAllocVids, diskLoadThreshold := v.allocator.PreAlloc(mode, count)
+	preAllocVids, diskLoadThreshold := v.allocator.PreAlloc(ctx, mode, count)
 	span.Debugf("preAlloc vids is %v,now disk load is %d", preAllocVids, diskLoadThreshold)
 	defer func() {
 		// check if need to insert volume back
@@ -308,7 +308,7 @@ func (v *VolumeMgr) AllocVolume(ctx context.Context, mode codemode.CodeMode, cou
 			}
 		}
 		if diskLoadThreshold >= v.allocator.allocatableDiskLoadThreshold {
-			span.Warnf("now disk load is %d, exceed allocatable threshold %d", diskLoadThreshold, v.allocator.allocatableDiskLoadThreshold)
+			span.Warnf("now disk load is %d reach the allocatable threshold %d", diskLoadThreshold, v.allocator.allocatableDiskLoadThreshold)
 			v.reportVolAllocOverDiskLoad(float64(diskLoadThreshold))
 		}
 	}()

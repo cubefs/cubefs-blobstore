@@ -49,7 +49,6 @@ type VolumeMgrConfig struct {
 	VolumeSliceMapNum            uint32 `json:"volume_slice_map_num"`
 	ApplyConcurrency             uint32 `json:"apply_concurrency"`
 	MinAllocableVolumeCount      int    `json:"min_allocable_volume_count"`
-	EachAllocatorVolumeThreshold int    `json:"each_allocator_volume_threshold"`
 	AllocatableDiskLoadThreshold int    `json:"allocatable_disk_load_threshold"`
 
 	// the volume free size small than FreezeThreshold treat filled
@@ -115,15 +114,14 @@ func NewVolumeMgr(conf VolumeMgrConfig, diskMgr diskmgr.DiskMgrAPI, scopeMgr sco
 
 	// initial volumeMgr
 	volumeMgr := &VolumeMgr{
-		all:           newShardedVolumes(conf.VolumeSliceMapNum),
-		volumeTbl:     volumeTable,
-		transitedTbl:  transitedTable,
-		createVolChan: make(chan struct{}, 1),
-		closeLoopChan: make(chan struct{}, 1),
-		codeMode:      make(map[codemode.CodeMode]codeModeConf),
-		taskMgr:       newTaskManager(10),
-		applyTaskPool: base.NewTaskDistribution(int(conf.ApplyConcurrency), 1),
-		// allocator:       volAllocator,
+		all:             newShardedVolumes(conf.VolumeSliceMapNum),
+		volumeTbl:       volumeTable,
+		transitedTbl:    transitedTable,
+		createVolChan:   make(chan struct{}, 1),
+		closeLoopChan:   make(chan struct{}, 1),
+		codeMode:        make(map[codemode.CodeMode]codeModeConf),
+		taskMgr:         newTaskManager(10),
+		applyTaskPool:   base.NewTaskDistribution(int(conf.ApplyConcurrency), 1),
 		diskMgr:         diskMgr,
 		scopeMgr:        scopeMgr,
 		configMgr:       configMgr,
