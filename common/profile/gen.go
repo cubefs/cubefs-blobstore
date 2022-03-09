@@ -73,28 +73,35 @@ func genDumpScript() {
 	}
 	defer f.Close()
 
-	fmt.Fprintf(f, "#!/bin/sh\n")
-	fmt.Fprintf(f, "echo $(date) dumping runtime status\n")
-	fmt.Fprintf(f, "set -x\n")
+	fmt.Fprint(f, "#!/bin/sh\n")
+	fmt.Fprint(f, "echo $(date) dumping runtime status\n")
+	fmt.Fprint(f, "set -x\n")
 	fmt.Fprintf(f, "DIR=profile/$(date '+%%Y%%m%%d%%H%%M%%S')\n")
 	fmt.Fprintf(f, "PREFIX=$DIR/%s_%d_%s_\n",
 		filepath.Base(os.Args[0]), os.Getpid(), time.Now().Format("20060102_150405"))
-	fmt.Fprintf(f, "mkdir -p ${DIR}\n")
+	fmt.Fprint(f, "mkdir -p ${DIR}\n")
 	fmt.Fprintf(f, "curl -sS '%s/metrics' -o ${PREFIX}metrics\n", profileAddr)
 	fmt.Fprintf(f, "curl -sS '%s/debug/vars?seconds=5' -o ${PREFIX}vars\n", profileAddr)
 	for _, p := range pprof.Profiles() {
-		fmt.Fprintf(f, "curl -sS '%s/debug/pprof/%s?seconds=5' -o ${PREFIX}%s\n",
-			profileAddr, p.Name(), p.Name())
-		if p.Name() == "goroutine" {
+		name := p.Name()
+		switch name {
+		case "heap", "allocs":
+			fmt.Fprintf(f, "curl -sS '%s/debug/pprof/%s' -o ${PREFIX}%s\n",
+				profileAddr, name, name)
+		case "goroutine":
 			fmt.Fprintf(f, "curl -sS '%s/debug/pprof/%s?debug=1' -o ${PREFIX}%s_debug_1\n",
-				profileAddr, p.Name(), p.Name())
+				profileAddr, name, name)
 			fmt.Fprintf(f, "curl -sS '%s/debug/pprof/%s?debug=2' -o ${PREFIX}%s_debug_2\n",
-				profileAddr, p.Name(), p.Name())
+				profileAddr, name, name)
+			fallthrough
+		default:
+			fmt.Fprintf(f, "curl -sS '%s/debug/pprof/%s?seconds=5' -o ${PREFIX}%s\n",
+				profileAddr, name, name)
 		}
 	}
 	fmt.Fprintf(f, "curl -sS '%s/debug/pprof/profile?seconds=5' -o ${PREFIX}profile\n", profileAddr)
 	fmt.Fprintf(f, "curl -sS '%s/debug/pprof/trace?seconds=5' -o ${PREFIX}trace\n", profileAddr)
-	fmt.Fprintf(f, "tar -cvzf ${DIR}.tar.gz ${DIR}\n")
+	fmt.Fprint(f, "tar -cvzf ${DIR}.tar.gz ${DIR}\n")
 	f.Sync()
 }
 
