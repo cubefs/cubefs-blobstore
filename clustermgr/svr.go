@@ -255,6 +255,20 @@ func New(cfg *Config) (*Service, error) {
 	if err != nil {
 		log.Fatalf("get raft members failed, err: %v", err.Error())
 	}
+	if len(members) == 0 {
+		for nodeID, host := range cfg.RaftConfig.ServerConfig.Peers {
+			err := raftNode.RecordRaftMember(context.Background(), base.RaftMember{ID: nodeID, Host: host, Learner: false}, false)
+			if err != nil {
+				log.Fatalf("init raft members failed, err: %s", err.Error())
+			}
+		}
+		for nodeID, host := range cfg.RaftConfig.ServerConfig.Learners {
+			err := raftNode.RecordRaftMember(context.Background(), base.RaftMember{ID: nodeID, Host: host, Learner: true}, false)
+			if err != nil {
+				log.Fatalf("init raft members failed, err: %s", err.Error())
+			}
+		}
+	}
 	peers := make(map[uint64]string)
 	learners := make(map[uint64]string)
 	for i := range members {
