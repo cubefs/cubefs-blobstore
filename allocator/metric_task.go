@@ -47,7 +47,7 @@ func (v *volumeMgr) metricReportTask() {
 		select {
 		case <-ticker.C:
 			v.metricReport(ctx)
-		case <-v.closed:
+		case <-v.closeCh:
 			span.Debugf("loop metric report task done.")
 			return
 		}
@@ -57,10 +57,8 @@ func (v *volumeMgr) metricReportTask() {
 func (v *volumeMgr) metricReport(ctx context.Context) {
 	span := trace.SpanFromContextSafe(ctx)
 	for codeMode, modeInfo := range v.modeInfos {
-		volNums := 0
-		modeInfo.volumes.Range(func(vol *volume) {
-			volNums += 1
-		})
+		vols := modeInfo.volumes.List()
+		volNums := len(vols)
 		codeModeStr := strconv.FormatUint(uint64(codeMode), 10)
 		AllocatorVolsStatusMetric.With(
 			prometheus.Labels{

@@ -94,10 +94,7 @@ func TestGetAllocList(t *testing.T) {
 
 	modeInfoMap := make(map[codemode.CodeMode]*ModeInfo)
 
-	modeVol1 := initModeVolumes()
-	modeVol2 := initModeVolumes()
-
-	volumeStateInfo1 := &ModeInfo{volumes: modeVol1, totalThreshold: 5 * 1024 * 1024, totalFree: 3 * 1024 * 1024}
+	volumeStateInfo1 := &ModeInfo{volumes: &volumes{}, totalThreshold: 5 * 1024 * 1024, totalFree: 3 * 1024 * 1024}
 	volumeStateInfo1.volumes.Put(&volume{
 		AllocVolumeInfo: volInfo1,
 	})
@@ -106,7 +103,7 @@ func TestGetAllocList(t *testing.T) {
 	})
 	modeInfoMap[codemode.CodeMode(1)] = volumeStateInfo1
 
-	volumeStateInfo2 := &ModeInfo{volumes: modeVol2, totalThreshold: 5 * 1024 * 1024, totalFree: 32 * 1024 * 1024}
+	volumeStateInfo2 := &ModeInfo{volumes: &volumes{}, totalThreshold: 5 * 1024 * 1024, totalFree: 32 * 1024 * 1024}
 	volumeStateInfo2.volumes.Put(&volume{
 		AllocVolumeInfo: volInfo3,
 	})
@@ -144,9 +141,7 @@ func TestGetAllocList(t *testing.T) {
 		if err != nil {
 			t.Log(err)
 		}
-
 		require.Equal(t, 3, int(vid))
-
 		info3, _ := vm.modeInfos[codemode.CodeMode(2)].volumes.Get(proto.Vid(3))
 		totalFree := vm.modeInfos[codemode.CodeMode(2)].totalFree
 		require.Equal(t, 3*1024*1024, int(info3.Free))
@@ -175,12 +170,11 @@ func BenchmarkVolumeMgr_Alloc(b *testing.B) {
 	vm := volumeMgr{clusterMgr: cmcli, BidMgr: bidMgr}
 
 	vm.modeInfos = make(map[codemode.CodeMode]*ModeInfo)
-	modeVol1 := initModeVolumes()
 	modeInfo := &ModeInfo{
-		volumes: modeVol1, totalThreshold: 15 * 16 * 1024 * 1024 * 1024,
-		totalFree: 30 * 16 * 1024 * 1024 * 1024,
+		volumes: &volumes{}, totalThreshold: 1 * 16 * 1024 * 1024 * 1024,
+		totalFree: 400 * 16 * 1024 * 1024 * 1024,
 	}
-	for i := 1; i <= 30; i++ {
+	for i := 1; i <= 400; i++ {
 		volInfo := cm.AllocVolumeInfo{
 			VolumeInfo: cm.VolumeInfo{
 				VolumeInfoBase: cm.VolumeInfoBase{
@@ -199,7 +193,7 @@ func BenchmarkVolumeMgr_Alloc(b *testing.B) {
 	vm.modeInfos[codemode.CodeMode(2)] = modeInfo
 
 	args := &allocator.AllocVolsArgs{
-		Fsize:    4 * 1024 * 1024,
+		Fsize:    4 * 1024,
 		BidCount: 2,
 		CodeMode: 2,
 		Excludes: []proto.Vid{4, 5},
@@ -223,9 +217,8 @@ func TestPollingAlloc(t *testing.T) {
 	vm := volumeMgr{clusterMgr: cmcli, BidMgr: bidMgr}
 
 	vm.modeInfos = make(map[codemode.CodeMode]*ModeInfo)
-	modeVol1 := initModeVolumes()
 	modeInfo := &ModeInfo{
-		volumes: modeVol1, totalThreshold: 16 * 1024 * 1024 * 1024,
+		volumes: &volumes{}, totalThreshold: 16 * 1024 * 1024 * 1024,
 		totalFree: 10 * 16 * 1024 * 1024 * 1024,
 	}
 	for i := 1; i <= 10; i++ {
@@ -340,14 +333,13 @@ func TestGetAvaliableVols(t *testing.T) {
 		mu:         sync.RWMutex{},
 		allocChs:   nil,
 		allocFlag:  0,
-		closed:     nil,
+		closeCh:    nil,
 	}
-	modeVol1 := initModeVolumes()
 	modeInfo := &ModeInfo{
-		volumes: modeVol1, totalThreshold: 10 * 1024 * 1024 * 1024,
-		totalFree: 55 * 1024 * 1024 * 1024,
+		volumes: &volumes{}, totalThreshold: 2 * 1024 * 1024 * 1024,
+		totalFree: 15 * 1024 * 1024 * 1024,
 	}
-	for i := 1; i <= 10; i++ {
+	for i := 1; i <= 5; i++ {
 		volInfo := cm.AllocVolumeInfo{
 			VolumeInfo: cm.VolumeInfo{
 				VolumeInfoBase: cm.VolumeInfoBase{
@@ -373,29 +365,41 @@ func TestGetAvaliableVols(t *testing.T) {
 		Discards: nil,
 	}
 	ctx := context.Background()
-	vids, err := v.getAvailableVols(ctx, args)
+	vols, err := v.getAvailableVols(ctx, args)
+	vids := make([]proto.Vid, 0)
+	for _, v := range vols {
+		vids = append(vids, v.Vid)
+	}
 	require.NoError(t, err)
-	require.Equal(t, []proto.Vid{5, 6, 7, 8, 9, 10}, vids)
+	require.Equal(t, []proto.Vid{1, 2, 3, 4, 5}, vids)
 
 	args2 := &allocator.AllocVolsArgs{
 		Fsize:    5 << 30,
 		CodeMode: codemode.EC6P6,
 		BidCount: 1,
 		Excludes: nil,
-		Discards: []proto.Vid{8, 9},
+		Discards: []proto.Vid{2, 4},
 	}
-	vids, err = v.getAvailableVols(ctx, args2)
+	vols, err = v.getAvailableVols(ctx, args2)
+	vids2 := make([]proto.Vid, 0)
+	for _, v := range vols {
+		vids2 = append(vids2, v.Vid)
+	}
 	require.NoError(t, err)
-	require.Equal(t, []proto.Vid{5, 6, 7, 10}, vids)
+	require.Equal(t, []proto.Vid{1, 3, 5}, vids2)
 
 	args3 := &allocator.AllocVolsArgs{
 		Fsize:    5 << 30,
 		CodeMode: codemode.EC6P6,
 		BidCount: 1,
 		Excludes: nil,
-		Discards: []proto.Vid{5, 6, 7, 8, 9, 10},
+		Discards: []proto.Vid{1, 3, 5},
 	}
-	vids, err = v.getAvailableVols(ctx, args3)
+	vols, err = v.getAvailableVols(ctx, args3)
+	vids3 := make([]proto.Vid, 0)
+	for _, v := range vols {
+		vids3 = append(vids3, v.Vid)
+	}
 	require.Error(t, err)
-	require.Nil(t, vids)
+	require.Equal(t, []proto.Vid{}, vids3)
 }

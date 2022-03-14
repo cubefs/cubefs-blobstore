@@ -20,25 +20,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/cubefs/blobstore/api/clustermgr"
 	"github.com/cubefs/blobstore/common/codemode"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/trace"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRetainTaskClose(t *testing.T) {
 	closed := make(chan struct{})
 	v := &volumeMgr{
-		closed: closed,
+		closeCh: closed,
 		VolConfig: VolConfig{
 			RetainIntervalS: 60,
 		},
 	}
 	go func(v *volumeMgr) {
-		v.closed <- struct{}{}
+		v.closeCh <- struct{}{}
 	}(v)
 	v.retainTask()
 }
@@ -72,10 +72,8 @@ func MockModeInfoMap() (modeMap map[codemode.CodeMode]*ModeInfo) {
 	now := time.Now().UnixNano()
 	mockHost := "127.0.0.1:7788"
 	modeInfoMap := make(map[codemode.CodeMode]*ModeInfo)
-	modeVol1 := initModeVolumes()
-	modeVol2 := initModeVolumes()
-	modeInfo1 := &ModeInfo{volumes: modeVol1}
-	modeInfo2 := &ModeInfo{volumes: modeVol2}
+	modeInfo1 := &ModeInfo{volumes: &volumes{}}
+	modeInfo2 := &ModeInfo{volumes: &volumes{}}
 	for i := 1; i <= 10; i++ {
 		vid := proto.Vid(i)
 		token := proto.EncodeToken(mockHost, vid)
@@ -139,10 +137,8 @@ func TestRetainVolumes(t *testing.T) {
 	vm := volumeMgr{}
 	vm.modeInfos = make(map[codemode.CodeMode]*ModeInfo)
 
-	modeVol1 := initModeVolumes()
-
 	modeInfo := &ModeInfo{
-		volumes: modeVol1, totalThreshold: 16 * 1024 * 1024 * 1024,
+		volumes: &volumes{}, totalThreshold: 16 * 1024 * 1024 * 1024,
 		totalFree: 2 * 16 * 1024 * 1024 * 1024,
 	}
 

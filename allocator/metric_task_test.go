@@ -27,9 +27,8 @@ func TestMetricReport(t *testing.T) {
 	ctx := context.Background()
 	vm := volumeMgr{}
 	vm.modeInfos = make(map[codemode.CodeMode]*ModeInfo)
-	modeVol1 := initModeVolumes()
 	modeInfo := &ModeInfo{
-		volumes: modeVol1, totalThreshold: 15 * 16 * 1024 * 1024 * 1024,
+		volumes: &volumes{}, totalThreshold: 15 * 16 * 1024 * 1024 * 1024,
 		totalFree: 30 * 16 * 1024 * 1024 * 1024,
 	}
 	for i := 1; i <= 30; i++ {

@@ -15,64 +15,71 @@
 package allocator
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/cubefs/blobstore/api/clustermgr"
 	"github.com/cubefs/blobstore/common/proto"
 )
 
-const entryNum = 32
-
 type volume struct {
 	clustermgr.AllocVolumeInfo
-	isDeleted bool
-	mu        sync.RWMutex
+	deleted bool
+	mu      sync.RWMutex
 }
 
 type volumes struct {
-	num   uint32
-	m     map[uint32]map[proto.Vid]*volume
-	locks map[uint32]*sync.RWMutex
+	vols []*volume
+	sync.RWMutex
 }
 
 func (s *volumes) Get(vid proto.Vid) (*volume, bool) {
-	idx := uint32(vid) % s.num
-	s.locks[idx].RLock()
-	defer s.locks[idx].RUnlock()
-	if _, ok := s.m[idx][vid]; !ok {
+	s.RLock()
+	defer s.RUnlock()
+	i, ok := search(s.vols, vid)
+	if !ok {
 		return nil, false
 	}
-	return s.m[idx][vid], true
+	return s.vols[i], true
 }
 
 func (s *volumes) Put(vol *volume) {
-	idx := uint32(vol.Vid) % s.num
-	s.locks[idx].Lock()
-	defer s.locks[idx].Unlock()
-	_, ok := s.m[idx][vol.Vid]
-	// volume already exist
+	s.Lock()
+	defer s.Unlock()
+	_, ok := search(s.vols, vol.Vid)
 	if !ok {
-		s.m[idx][vol.Vid] = vol
+		s.vols = append(s.vols, vol)
+		sort.Slice(s.vols, func(i, j int) bool {
+			return s.vols[i].Vid < s.vols[j].Vid
+		})
 	}
 }
 
 func (s *volumes) Delete(vid proto.Vid) {
-	idx := uint32(vid) % s.num
-	s.locks[idx].Lock()
-	defer s.locks[idx].Unlock()
-	_, ok := s.m[idx][vid]
-	// volume already exist
+	s.Lock()
+	defer s.Unlock()
+	i, ok := search(s.vols, vid)
 	if ok {
-		delete(s.m[idx], vid)
+		vols := make([]*volume, len(s.vols)-1)
+		copy(vols, s.vols[:i])
+		copy(vols[i:], s.vols[i+1:])
+		s.vols = vols
 	}
 }
 
-func (s *volumes) Range(f func(vol *volume)) {
-	for i := uint32(0); i < s.num; i++ {
-		s.locks[i].RLock()
-		for vid := range s.m[i] {
-			f(s.m[i][vid])
-		}
-		s.locks[i].RUnlock()
+func (s *volumes) List() (vols []*volume) {
+	s.RLock()
+	defer s.RUnlock()
+	vols = s.vols
+	return vols
+}
+
+func search(vols []*volume, vid proto.Vid) (int, bool) {
+	idx := sort.Search(len(vols), func(i int) bool {
+		return vols[i].Vid >= vid
+	})
+	if idx == len(vols) || vols[idx].Vid != vid {
+		return idx, false
 	}
+	return idx, true
 }

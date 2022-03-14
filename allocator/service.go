@@ -77,6 +77,7 @@ func setUp() (*rpc.Router, []rpc.ProgressHandler) {
 }
 
 func tearDown() {
+	service.volumeMgr.Close()
 }
 
 func NewHandler(service *Service) *rpc.Router {

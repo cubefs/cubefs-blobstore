@@ -34,7 +34,7 @@ func (v *volumeMgr) retainTask() {
 		select {
 		case <-ticker.C:
 			v.retain(ctx)
-		case <-v.closed:
+		case <-v.closeCh:
 			span.Debugf("loop retain done.")
 			return
 		}
@@ -68,16 +68,17 @@ func (v *volumeMgr) handleFullVols(ctx context.Context) {
 	span := trace.SpanFromContextSafe(ctx)
 	for codeMode, volInfo := range v.modeInfos {
 		fullVols := make([]proto.Vid, 0)
-		volInfo.volumes.Range(func(vol *volume) {
+		vols := volInfo.volumes.List()
+		for _, vol := range vols {
 			vid := vol.Vid
 			vol.mu.Lock()
 			if vol.Free < uint64(v.VolumeReserveSize) {
-				vol.isDeleted = true
+				vol.deleted = true
 				fullVols = append(fullVols, vid)
 				atomic.AddUint64(&volInfo.totalFree, -vol.Free)
 			}
 			vol.mu.Unlock()
-		})
+		}
 		if len(fullVols) > 0 {
 			for _, vid := range fullVols {
 				volInfo.volumes.Delete(vid)
@@ -134,7 +135,7 @@ func (v *volumeMgr) discardVolume(ctx context.Context, token string) (err error)
 		if vol, ok := modeInfo.volumes.Get(vid); ok {
 			vol.mu.Lock()
 			atomic.AddUint64(&modeInfo.totalFree, -vol.Free)
-			vol.isDeleted = true
+			vol.deleted = true
 			vol.mu.Unlock()
 			modeInfo.volumes.Delete(vid)
 			return
@@ -149,12 +150,11 @@ func (v *volumeMgr) genRetainVolume(ctx context.Context) (tokens []string) {
 	tokens = make([]string, 0, 128)
 	vids := make([]proto.Vid, 0, 128)
 	for _, volInfos := range v.modeInfos {
-		volInfos.volumes.Range(func(vol *volume) {
-			vol.mu.RLock()
+		vols := volInfos.volumes.List()
+		for _, vol := range vols {
 			vids = append(vids, vol.Vid)
 			tokens = append(tokens, vol.Token)
-			vol.mu.RUnlock()
-		})
+		}
 	}
 	if len(vids) > 0 {
 		span.Debugf("will retain volumes:%v, lens:%v", vids, len(vids))
