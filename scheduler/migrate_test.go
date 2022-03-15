@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -184,6 +185,7 @@ type mockMigrateCmClient struct {
 	disksMap     map[proto.DiskID]*client.DiskInfoSimple
 	droppedDisks map[proto.DiskID]bool
 	updatedVid   map[proto.Vid]bool
+	lockVid      sync.RWMutex
 }
 
 func NewMigrateMockCmClient(retErr error,
@@ -236,7 +238,9 @@ func (m *mockMigrateCmClient) UnlockVolume(ctx context.Context, Vid proto.Vid) (
 }
 
 func (m *mockMigrateCmClient) UpdateVolume(ctx context.Context, newVuid, oldVuid proto.Vuid, newDiskID proto.DiskID) (err error) {
+	m.lockVid.Lock()
 	m.updatedVid[newVuid.Vid()] = true
+	m.lockVid.Unlock()
 	return m.getErrInfo()
 }
 
@@ -249,6 +253,8 @@ func (m *mockMigrateCmClient) ReleaseVolumeUnit(ctx context.Context, vuid proto.
 }
 
 func (m *mockMigrateCmClient) ListDiskVolumeUnits(ctx context.Context, diskID proto.DiskID) (ret []*client.VunitInfoSimple, err error) {
+	m.lockVid.RLock()
+	defer m.lockVid.RUnlock()
 	used := uint64(100000)
 	for _, volInfo := range m.volInfoMap {
 		if _, ok := m.updatedVid[volInfo.Vid]; ok {
