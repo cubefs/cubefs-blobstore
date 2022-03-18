@@ -9,6 +9,7 @@ require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/alicebob/miniredis/v2 v2.16.1
 	github.com/benbjohnson/clock v1.3.0
+	github.com/deniswernert/go-fstab v0.0.0-20141204152952-eb4090f26517
 	github.com/desertbit/grumble v1.1.1
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.13.0

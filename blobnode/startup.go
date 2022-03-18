@@ -26,12 +26,14 @@ import (
 	"github.com/cubefs/blobstore/blobnode/base/flow"
 	"github.com/cubefs/blobstore/blobnode/core"
 	"github.com/cubefs/blobstore/blobnode/core/disk"
+	"github.com/cubefs/blobstore/common/diskutil"
 	bloberr "github.com/cubefs/blobstore/common/errors"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/trace"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/util/limit/keycount"
+	"github.com/cubefs/blobstore/util/log"
 )
 
 func readFormatInfo(ctx context.Context, diskRootPath string) (
@@ -92,6 +94,23 @@ func (s *Service) handleDiskIOError(ctx context.Context, diskID proto.DiskID, di
 	if !exist {
 		span.Errorf("such disk(%v) does exist", diskID)
 		return
+	}
+
+	if diskutil.IsLostDisk(ds.DiskInfo().Path) {
+		lostCnt := 1
+		diskStorages := s.copyDiskStorages(ctx)
+		for _, dsAPI := range diskStorages {
+			if dsAPI.ID() == diskID {
+				continue
+			}
+			if diskutil.IsLostDisk(dsAPI.DiskInfo().Path) {
+				lostCnt++
+				span.Errorf("open diskId: %v, path: %v, disk lost", dsAPI.ID(), dsAPI.DiskInfo().Path)
+			}
+		}
+		if lostCnt >= 3 {
+			log.Fatalf("lost disk count: %v over threshold", lostCnt)
+		}
 	}
 
 	ds.SetStatus(proto.DiskStatusBroken)
