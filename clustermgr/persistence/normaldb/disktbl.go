@@ -180,10 +180,7 @@ func (d *DiskTable) ListDisk(opt *clustermgr.ListOptionArgs) ([]*DiskInfoRecord,
 	if opt.Marker != proto.InvalidDiskID && iter.Valid() {
 		iter.Next()
 	}
-	for i := 0; i < opt.Count; i++ {
-		if !iter.Valid() {
-			break
-		}
+	for ; opt.Count > 0 && iter.Valid(); iter.Next() {
 		if iter.Err() != nil {
 			return nil, errors.Info(iter.Err(), "disk table iterate failed")
 		}
@@ -200,17 +197,31 @@ func (d *DiskTable) ListDisk(opt *clustermgr.ListOptionArgs) ([]*DiskInfoRecord,
 			var diskID proto.DiskID
 			diskID = diskID.Decode(iter.Value().Data())
 			diskInfo, err = d.GetDisk(diskID)
-
 			if err != nil {
 				iter.Key().Free()
 				iter.Value().Free()
 				return nil, errors.Info(err, "disk table iterate failed")
 			}
+
+			// two part of detail filter
+			if opt.Host != "" && diskInfo.Host != opt.Host {
+				goto FREE
+			}
+			if opt.Idc != "" && diskInfo.Idc != opt.Idc {
+				goto FREE
+			}
+			if opt.Rack != "" && diskInfo.Rack != opt.Rack {
+				goto FREE
+			}
+			if opt.Status.IsValid() && diskInfo.Status != opt.Status {
+				goto FREE
+			}
 			ret = append(ret, diskInfo)
+			opt.Count--
 		}
+	FREE:
 		iter.Value().Free()
 		iter.Key().Free()
-		iter.Next()
 	}
 	return ret, nil
 }

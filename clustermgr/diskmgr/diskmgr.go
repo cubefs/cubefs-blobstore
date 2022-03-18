@@ -501,19 +501,6 @@ func (d *DiskMgr) ListDiskInfo(ctx context.Context, opt *clustermgr.ListOptionAr
 	}
 
 	for i := range diskInfoDBs {
-		if opt.Host != "" && diskInfoDBs[i].Host != opt.Host {
-			continue
-		}
-		if opt.Idc != "" && diskInfoDBs[i].Idc != opt.Idc {
-			continue
-		}
-		if opt.Rack != "" && diskInfoDBs[i].Rack != opt.Rack {
-			continue
-		}
-		if opt.Status.IsValid() && diskInfoDBs[i].Status != opt.Status {
-			continue
-		}
-
 		diskInfo := diskInfoRecordToDiskInfo(diskInfoDBs[i])
 		disk, _ := d.getDisk(diskInfo.DiskID)
 		disk.lock.RLock()
