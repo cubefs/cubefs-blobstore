@@ -385,7 +385,11 @@ func (l *largeFile) getFileHandler(off int64, rotateNew bool) (fh *fileItem, isO
 
 // check rotate will check if need to remove oldest backup file
 func (l *largeFile) checkRotate() error {
-	if l.Backup != 0 && len(l.fis) > l.Backup {
+	if l.Backup <= 0 {
+		return nil
+	}
+	num := len(l.fis) - l.Backup
+	for i := 0; i < num; i++ {
 		oldestFileName := l.fis[0].Name()
 		oldestIdx, _, err := l.decodeFileName(oldestFileName)
 		if err != nil {
