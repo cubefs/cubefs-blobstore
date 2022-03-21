@@ -18,6 +18,8 @@ import (
 	"errors"
 
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"github.com/cubefs/blobstore/util/defaulter"
 )
 
 const (
@@ -55,27 +57,10 @@ type TaskCommonConfig struct {
 
 // CheckAndFix check and fix task common config
 func (conf *TaskCommonConfig) CheckAndFix() {
-	if conf.PrepareQueueRetryDelayS <= 0 {
-		conf.PrepareQueueRetryDelayS = defaultPrepareQueueRetryDelayS
-	}
-
-	if conf.FinishQueueRetryDelayS <= 0 {
-		conf.FinishQueueRetryDelayS = defaultFinishQueueRetryDelayS
-	}
-
-	if conf.CancelPunishDurationS <= 0 {
-		conf.CancelPunishDurationS = defaultCancelPunishDurationS
-	}
-
-	if conf.WorkQueueSize <= 0 {
-		conf.WorkQueueSize = defaultWorkQueueSize
-	}
-
-	if conf.CollectTaskIntervalS <= 0 {
-		conf.CollectTaskIntervalS = defaultCollectIntervalS
-	}
-
-	if conf.CheckTaskIntervalS <= 0 {
-		conf.CheckTaskIntervalS = defaultCheckTaskIntervalS
-	}
+	defaulter.LessOrEqual(&conf.PrepareQueueRetryDelayS, defaultPrepareQueueRetryDelayS)
+	defaulter.LessOrEqual(&conf.FinishQueueRetryDelayS, defaultFinishQueueRetryDelayS)
+	defaulter.LessOrEqual(&conf.CancelPunishDurationS, defaultCancelPunishDurationS)
+	defaulter.LessOrEqual(&conf.WorkQueueSize, defaultWorkQueueSize)
+	defaulter.LessOrEqual(&conf.CollectTaskIntervalS, defaultCollectIntervalS)
+	defaulter.LessOrEqual(&conf.CheckTaskIntervalS, defaultCheckTaskIntervalS)
 }

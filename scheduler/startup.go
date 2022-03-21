@@ -23,12 +23,12 @@ import (
 	"github.com/cubefs/blobstore/api/tinker"
 	"github.com/cubefs/blobstore/cmd"
 	"github.com/cubefs/blobstore/common/config"
-	"github.com/cubefs/blobstore/common/mongoutil"
 	"github.com/cubefs/blobstore/common/proto"
 	"github.com/cubefs/blobstore/common/rpc"
 	"github.com/cubefs/blobstore/common/taskswitch"
 	"github.com/cubefs/blobstore/scheduler/client"
 	"github.com/cubefs/blobstore/scheduler/db"
+	"github.com/cubefs/blobstore/util/defaulter"
 	"github.com/cubefs/blobstore/util/errors"
 	"github.com/cubefs/blobstore/util/log"
 )
@@ -79,18 +79,18 @@ var ErrIllegalClusterID = errors.New("illegal cluster_id")
 type Config struct {
 	cmd.Config
 
-	ClusterID                 proto.ClusterID        `json:"cluster_id"`
-	Database                  db.Config              `json:"database"`
-	TaskArchiveStoreDB        *db.ArchiveStoreConfig `json:"task_archive_store_db"`
-	TopologyUpdateIntervalMin int                    `json:"topology_update_interval_min"`
-	FreeChunkCounterBuckets   []float64              `json:"free_chunk_counter_buckets"`
-	ClusterMgr                *clustermgr.Config     `json:"clustermgr"`
-	MqProxy                   *mqproxy.LbConfig      `json:"mqproxy"`
-	Tinker                    *tinker.Config         `json:"tinker"`
-	BalanceTask               *BalanceMgrConfig      `json:"balance_task"`
-	DiskDropTask              *DiskDropMgrConfig     `json:"disk_drop_task"`
-	RepairTask                *RepairMgrCfg          `json:"repair_task"`
-	InspectTask               *InspectMgrCfg         `json:"inspect_task"`
+	ClusterID                 proto.ClusterID       `json:"cluster_id"`
+	Database                  db.Config             `json:"database"`
+	TaskArchiveStoreDB        db.ArchiveStoreConfig `json:"task_archive_store_db"`
+	TopologyUpdateIntervalMin int                   `json:"topology_update_interval_min"`
+	FreeChunkCounterBuckets   []float64             `json:"free_chunk_counter_buckets"`
+	ClusterMgr                clustermgr.Config     `json:"clustermgr"`
+	MqProxy                   mqproxy.LbConfig      `json:"mqproxy"`
+	Tinker                    tinker.Config         `json:"tinker"`
+	BalanceTask               BalanceMgrConfig      `json:"balance_task"`
+	DiskDropTask              DiskDropMgrConfig     `json:"disk_drop_task"`
+	RepairTask                RepairMgrCfg          `json:"repair_task"`
+	InspectTask               InspectMgrCfg         `json:"inspect_task"`
 
 	// inspect may be unavailable if NotMustNeedMqProxy is true
 	NotMustNeedMqProxy bool `json:"not_must_need_mq_proxy"`
@@ -104,9 +104,8 @@ func (c *Config) checkAndFix() (err error) {
 	if c.ClusterID == 0 {
 		return ErrIllegalClusterID
 	}
-	if c.TopologyUpdateIntervalMin <= 0 {
-		c.TopologyUpdateIntervalMin = 1
-	}
+
+	defaulter.LessOrEqual(&c.TopologyUpdateIntervalMin, defaultTopologyUpdateIntervalMin)
 
 	c.checkAndFixClientCfg()
 	c.checkAndFixDataBaseCfg()
@@ -120,123 +119,56 @@ func (c *Config) checkAndFix() (err error) {
 }
 
 func (c *Config) checkAndFixClientCfg() {
-	if c.MqProxy == nil {
-		c.MqProxy = &mqproxy.LbConfig{}
-	}
-	if c.MqProxy.ClientTimeoutMs <= 0 {
-		c.MqProxy.ClientTimeoutMs = 1000
-	}
-
-	if c.Tinker == nil {
-		c.Tinker = &tinker.Config{}
-	}
-	if c.Tinker.ClientTimeoutMs <= 0 {
-		c.MqProxy.ClientTimeoutMs = 1000
-	}
+	defaulter.LessOrEqual(&c.MqProxy.ClientTimeoutMs, defaultClientTimeoutMs)
+	defaulter.LessOrEqual(&c.Tinker.ClientTimeoutMs, defaultClientTimeoutMs)
 }
 
 func (c *Config) checkAndFixDataBaseCfg() {
-	if c.Database.Mongo.TimeoutMs <= 0 {
-		c.Database.Mongo.TimeoutMs = 3000
-	}
 	if c.Database.Mongo.WriteConcern == nil {
-		c.Database.Mongo.WriteConcern = &mongoutil.WriteConcernConfig{TimeoutMs: 3000, Majority: true}
+		c.Database.Mongo.WriteConcern = &defaultWriteConfig
 	}
-
-	if c.Database.BalanceTblName == "" {
-		c.Database.BalanceTblName = "balance_tbl"
-	}
-	if c.Database.DiskDropTblName == "" {
-		c.Database.DiskDropTblName = "disk_drop_tbl"
-	}
-	if c.Database.RepairTblName == "" {
-		c.Database.RepairTblName = "repair_tbl"
-	}
-	if c.Database.InspectCheckPointTblName == "" {
-		c.Database.InspectCheckPointTblName = "inspect_checkpoint_tbl"
-	}
-	if c.Database.ManualMigrateTblName == "" {
-		c.Database.ManualMigrateTblName = "manual_migrate_tbl"
-	}
-	if c.Database.SvrRegisterTblName == "" {
-		c.Database.SvrRegisterTblName = "svr_register_tbl"
-	}
+	defaulter.LessOrEqual(&c.Database.Mongo.TimeoutMs, defaultMongoTimeoutMs)
+	defaulter.Empty(&c.Database.BalanceTblName, defaultBalanceTable)
+	defaulter.Empty(&c.Database.DiskDropTblName, defaultDiskDropTable)
+	defaulter.Empty(&c.Database.RepairTblName, defaultRepairTable)
+	defaulter.Empty(&c.Database.InspectCheckPointTblName, defaultInspectCheckPointTable)
+	defaulter.Empty(&c.Database.ManualMigrateTblName, defaultManualMigrateTable)
+	defaulter.Empty(&c.Database.SvrRegisterTblName, defaultSvrRegisterTable)
 }
 
 func (c *Config) checkAndFixArchiveStoreCfg() {
-	if c.TaskArchiveStoreDB == nil {
-		c.TaskArchiveStoreDB = &db.ArchiveStoreConfig{}
-	}
-
-	if c.TaskArchiveStoreDB.ArchiveDelayMin == 0 {
-		c.TaskArchiveStoreDB.ArchiveDelayMin = 5
-	}
-	if c.TaskArchiveStoreDB.ArchiveIntervalMin == 0 {
-		c.TaskArchiveStoreDB.ArchiveIntervalMin = c.TaskArchiveStoreDB.ArchiveDelayMin
-	}
-	if c.TaskArchiveStoreDB.Mongo.TimeoutMs <= 0 {
-		c.TaskArchiveStoreDB.Mongo.TimeoutMs = 3000
-	}
 	if c.TaskArchiveStoreDB.Mongo.WriteConcern == nil {
-		c.TaskArchiveStoreDB.Mongo.WriteConcern = &mongoutil.WriteConcernConfig{TimeoutMs: 3000, Majority: true}
+		c.TaskArchiveStoreDB.Mongo.WriteConcern = &defaultWriteConfig
 	}
-	if c.TaskArchiveStoreDB.TblName == "" {
-		c.TaskArchiveStoreDB.TblName = "tasks_tbl"
-	}
+	defaulter.LessOrEqual(&c.TaskArchiveStoreDB.ArchiveDelayMin, defaultArchiveDelayMin)
+	defaulter.LessOrEqual(&c.TaskArchiveStoreDB.ArchiveIntervalMin, defaultArchiveIntervalMin)
+	defaulter.LessOrEqual(&c.Database.Mongo.TimeoutMs, defaultMongoTimeoutMs)
+	defaulter.Empty(&c.TaskArchiveStoreDB.TblName, defaultArchiveTasksTable)
 }
 
 func (c *Config) checkAndFixRepairCfg() {
-	if c.RepairTask == nil {
-		c.RepairTask = &RepairMgrCfg{}
-	}
 	c.RepairTask.ClusterID = c.ClusterID
 	c.RepairTask.CheckAndFix()
 }
 
 func (c *Config) checkAndFixBalanceCfg() {
-	if c.BalanceTask == nil {
-		c.BalanceTask = &BalanceMgrConfig{}
-	}
 	c.BalanceTask.ClusterID = c.ClusterID
-
-	if c.BalanceTask.BalanceDiskCntLimit <= 0 {
-		c.BalanceTask.BalanceDiskCntLimit = 100
-	}
-	if c.BalanceTask.MaxDiskFreeChunkCnt <= 0 {
-		c.BalanceTask.MaxDiskFreeChunkCnt = 1024
-	}
-	if c.BalanceTask.MinDiskFreeChunkCnt <= 0 {
-		c.BalanceTask.MinDiskFreeChunkCnt = 20
-	}
-
+	defaulter.LessOrEqual(&c.BalanceTask.BalanceDiskCntLimit, defaultBalanceDiskCntLimit)
+	defaulter.LessOrEqual(&c.BalanceTask.MaxDiskFreeChunkCnt, defaultMaxDiskFreeChunkCnt)
+	defaulter.LessOrEqual(&c.BalanceTask.MinDiskFreeChunkCnt, defaultMinDiskFreeChunkCnt)
 	c.BalanceTask.CheckAndFix()
 }
 
 func (c *Config) checkAndFixDiskDropCfg() {
-	if c.DiskDropTask == nil {
-		c.DiskDropTask = &DiskDropMgrConfig{}
-	}
 	c.DiskDropTask.ClusterID = c.ClusterID
 	c.DiskDropTask.CheckAndFix()
 }
 
 func (c *Config) checkAndFixInspectCfg() {
-	if c.InspectTask == nil {
-		c.InspectTask = &InspectMgrCfg{}
-	}
-	if c.InspectTask.TimeoutMs <= 0 {
-		c.InspectTask.TimeoutMs = 10000
-	}
-	if c.InspectTask.ListVolStep <= 0 {
-		c.InspectTask.ListVolStep = 100
-	}
-	if c.InspectTask.ListVolIntervalMs <= 0 {
-		c.InspectTask.ListVolIntervalMs = 10
-	}
-	if c.InspectTask.InspectBatch <= 0 {
-		c.InspectTask.InspectBatch = 1000
-	}
-
+	defaulter.LessOrEqual(&c.InspectTask.TimeoutMs, defaultInspectTimeoutMs)
+	defaulter.LessOrEqual(&c.InspectTask.ListVolStep, defaultListVolStep)
+	defaulter.LessOrEqual(&c.InspectTask.ListVolIntervalMs, defaultListVolIntervalMs)
+	defaulter.LessOrEqual(&c.InspectTask.InspectBatch, defaultInspectBatch)
 	if c.InspectTask.InspectBatch < c.InspectTask.ListVolStep {
 		c.InspectTask.InspectBatch = c.InspectTask.ListVolStep
 	}
@@ -250,20 +182,20 @@ func NewService(conf *Config) (svr *Service, err error) {
 	}
 
 	// init db
-	database, err := db.OpenDatabase(&conf.Database, conf.TaskArchiveStoreDB)
+	database, err := db.OpenDatabase(&conf.Database, &conf.TaskArchiveStoreDB)
 	if err != nil {
 		log.Errorf("open database fail err %+v", err)
 		return nil, err
 	}
 
 	clusterMgrCli := client.CmCliInst()
-	err = clusterMgrCli.Init(conf.ClusterMgr)
+	err = clusterMgrCli.Init(&conf.ClusterMgr)
 	if err != nil {
 		log.Errorf("new cm client fail err:%+v", err)
 		return nil, err
 	}
 
-	tinkerCli := client.NewTinkerClient(conf.Tinker)
+	tinkerCli := client.NewTinkerClient(&conf.Tinker)
 
 	switchMgr := taskswitch.NewSwitchMgr(clusterMgrCli)
 
@@ -283,7 +215,7 @@ func NewService(conf *Config) (svr *Service, err error) {
 		topologyMgr,
 		database.SvrRegisterTbl,
 		database.BalanceTbl,
-		conf.BalanceTask)
+		&conf.BalanceTask)
 	if err != nil {
 		log.Errorf("new balance mgr fail err %+v", err)
 		return nil, err
@@ -296,7 +228,7 @@ func NewService(conf *Config) (svr *Service, err error) {
 		switchMgr,
 		database.SvrRegisterTbl,
 		database.DiskDropTbl,
-		conf.DiskDropTask)
+		&conf.DiskDropTask)
 	if err != nil {
 		log.Errorf("new disk drop mgr fail err %+v", err)
 		return nil, err
@@ -312,7 +244,7 @@ func NewService(conf *Config) (svr *Service, err error) {
 
 	// new disk repair manager
 	repairMgr, err := NewRepairMgr(
-		conf.RepairTask,
+		&conf.RepairTask,
 		switchMgr,
 		database.RepairTaskTbl,
 		clusterMgrCli)
@@ -323,7 +255,7 @@ func NewService(conf *Config) (svr *Service, err error) {
 
 	// new inspect manger
 	var inspectMgr *InspectMgr
-	mqProxy, err := client.NewMqProxyClient(conf.MqProxy, conf.ClusterMgr, conf.ClusterID)
+	mqProxy, err := client.NewMqProxyClient(&conf.MqProxy, &conf.ClusterMgr, conf.ClusterID)
 	if err != nil {
 		log.Errorf("new proxy client fail err %+v", err)
 		if conf.isMqProxyNecessary() {
@@ -331,7 +263,7 @@ func NewService(conf *Config) (svr *Service, err error) {
 		}
 	} else {
 		inspectMgr, err = NewInspectMgr(
-			conf.InspectTask,
+			&conf.InspectTask,
 			database.InspectCheckPointTbl,
 			clusterMgrCli,
 			mqProxy,

@@ -40,6 +40,11 @@ type WriteConcernConfig struct {
 	TimeoutMs int64 `json:"timeout_ms"`
 }
 
+var DefaultWriteConfig = WriteConcernConfig{
+	Majority:  true,
+	TimeoutMs: 3000,
+}
+
 const (
 	// ReadConcernLocal mean https://docs.mongodb.com/manual/reference/read-concern-local/#readconcern.%22local%22
 	ReadConcernLocal = "local"
