@@ -134,6 +134,7 @@ func (h *Handler) allocFromAllocator(ctx context.Context, codeMode codemode.Code
 			hostsSet[host] = struct{}{}
 			break
 		}
+		allocHost = host
 
 		allocRets, err = h.allocatorClient.VolumeAlloc(ctx, host, &args)
 		if err != nil {
@@ -162,7 +163,6 @@ func (h *Handler) allocFromAllocator(ctx context.Context, codeMode codemode.Code
 			}
 		}
 
-		allocHost = host
 		return nil
 	}); err != nil {
 		if err != errAllocatePunishedVolume {
